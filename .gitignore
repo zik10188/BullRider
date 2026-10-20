@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.pnpm-store/
+.pnpm-cache/
+.npm-cache/
+.tmp/
+.data/
+*.log
+.trae/
+docs/

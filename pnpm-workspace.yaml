@@ -1,0 +1,8 @@
+# pnpm 11 默认拦截所有带 install/build 脚本的依赖（严格模式）。
+# 这里放行真正需要的：esbuild（tsx/vite 的底层打包器，需要它的 postinstall 准备原生二进制）。
+allowBuilds:
+  esbuild: true
+
+# 工作区成员：web/ 是 Vite+React 前端（阶段6）
+packages:
+  - web

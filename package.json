@@ -1,0 +1,38 @@
+{
+  "name": "bullrider",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "BullRider —— 面向国内 A股交易、一切皆插件的新手 Agent（教学演示工程）",
+  "license": "MIT",
+  "author": "zik10188",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zik10188/BullRider.git"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "fetch": "tsx src/cli.ts",
+    "signal": "tsx src/cli.ts signal",
+    "backtest": "tsx src/cli.ts backtest",
+    "paper": "tsx src/cli.ts paper",
+    "real": "tsx src/cli.ts real",
+    "web": "tsx src/web/server.ts",
+    "web:dev": "cd web && pnpm dev",
+    "web:build": "cd web && pnpm build",
+    "test": "node --import tsx --test \"src/tests/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis-plugin-logger-console": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
