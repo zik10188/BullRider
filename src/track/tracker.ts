@@ -306,30 +306,28 @@ export async function settleCheck(deps: TrackDeps, dir: string = DEFAULT_DIR): P
       }
       if (kind !== 'HOLD') events.push({ date: k.date, price: k.close, kind })
     }
-    const before = g.entries.length
+    // 记录本次检查开始时已在途的条目。回放可能先结算旧信号、再新增 BUY，
+    // 因此不能在 ingest 后比较“在途数量”，否则会把新信号误认为旧信号仍未结算。
+    const initialEntries = g.entries
     ingestSignals(store, g.code, g.name, events, 'scan')
-    const after = derivePending(store).find((x) => x.code === g.code)?.entries.length ?? 0
-    let didSettle = after < before // 回放发现了 SELL → 已结算
-    if (!didSettle) {
-      // 没等到 SELL → 超时判定（以最早在途信号到最新K线的跨度计）
-      const lastK = klines[klines.length - 1]
-      const idx0 = klines.findIndex((k) => k.date >= g.entries[0].date)
-      const span = idx0 < 0 ? Number.MAX_SAFE_INTEGER : klines.length - 1 - idx0
-      if (span > TIMEOUT_BARS) {
-        const sid = newId()
-        for (const p of derivePending(store).find((x) => x.code === g.code)?.entries ?? []) {
-          const ei = klines.findIndex((k) => k.date >= p.date)
-          p.settleId = sid
-          p.exit = {
-            date: lastK.date,
-            price: lastK.close,
-            reason: 'TIMEOUT',
-            returnPercent: (lastK.close / p.price - 1) * 100,
-            days: ei >= 0 ? klines.length - 1 - ei : undefined,
-          }
-        }
-        didSettle = true
+    let didSettle = initialEntries.some((entry) => Boolean(entry.exit))
+    // 没等到 SELL 的条目再单独做超时判断；新产生的 BUY 不在 initialEntries 中，不会被误结算。
+    const lastK = klines[klines.length - 1]
+    const timeoutId = newId()
+    for (const entry of initialEntries) {
+      if (entry.exit) continue
+      const entryIndex = klines.findIndex((k) => k.date >= entry.date)
+      const span = entryIndex < 0 ? Number.MAX_SAFE_INTEGER : klines.length - 1 - entryIndex
+      if (span <= TIMEOUT_BARS) continue
+      entry.settleId = timeoutId
+      entry.exit = {
+        date: lastK.date,
+        price: lastK.close,
+        reason: 'TIMEOUT',
+        returnPercent: (lastK.close / entry.price - 1) * 100,
+        days: entryIndex >= 0 ? klines.length - 1 - entryIndex : undefined,
       }
+      didSettle = true
     }
     if (didSettle) settled++
     backfillDays(store, g.code, klines)

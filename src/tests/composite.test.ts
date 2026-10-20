@@ -9,8 +9,11 @@ import { series } from './helpers'
 
 /** 按历史长度输出固定结论的假策略（回测收益因此可精确预期） */
 class ScriptedProvider implements SignalProvider {
-  readonly minBars = 60
-  constructor(readonly name: string, private fn: (len: number) => SignalKind) {}
+  constructor(
+    readonly name: string,
+    private fn: (len: number) => SignalKind,
+    readonly minBars = 1,
+  ) {}
   evaluate(klines: KLine[]): Signal {
     const last = klines[klines.length - 1]
     return { kind: this.fn(klines.length), date: last.date, price: last.close, strategy: this.name, reason: `${this.name} scripted`, indicators: {} }
@@ -68,6 +71,17 @@ test('数据不足 60 根 → 报错；恰好 60 根 → 正常', () => {
   const p = new CompositeProvider([alwaysHold, alwaysHold, alwaysHold])
   assert.throws(() => p.evaluate(uptrend.slice(0, 59)))
   assert.equal(p.evaluate(uptrend).kind, 'HOLD')
+})
+
+test('子策略权重回测按各自 minBars 设置预热，不会因统一暖机误判为 0 收益', () => {
+  const p = new CompositeProvider([
+    new ScriptedProvider('late-start', () => 'BUY', 35),
+    new ScriptedProvider('hold-a', () => 'HOLD'),
+    new ScriptedProvider('hold-b', () => 'HOLD'),
+  ])
+  const s = p.evaluate(uptrend)
+  assert.equal(s.kind, 'BUY')
+  assert.ok(s.indicators['w_late-start'] > 0.7)
 })
 
 test('集成：真实五策略跑 60 根，权重键与 ma5/ma10 齐全，reason 带权重说明', () => {

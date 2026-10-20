@@ -1,5 +1,6 @@
 // 回测引擎：纯函数。给历史日K + 一个"每根K线做决策"的函数，模拟全仓买卖。
-// 规则贴近 A股现实：一手100股、买佣金、卖佣金+印花税、T+1（日线天然满足）。
+// 成交口径：第 i 根收盘后生成信号，第 i+1 根开盘成交，避免使用当天收盘价产生未来函数。
+// 规则贴近 A股现实：一手100股、买佣金、卖佣金+印花税、T+1（次日开盘成交天然满足）。
 // 决策函数直接复用 signal 缝，所以换策略只需换 Provider。
 import type { KLine } from '../market-data/types'
 import type { SignalKind } from '../signal/types'
@@ -46,31 +47,40 @@ export function runBacktest(
 
   for (let i = 0; i < klines.length; i++) {
     const k = klines[i]
-    if (i >= warmup) {
-      const signal = decide(klines.slice(0, i + 1))
-      if (signal === 'BUY' && shares === 0) {
-        // 全仓买入（按一手对齐）
-        const perLotCost = k.close * lotSize * (1 + buyFeeRate)
+    // 只用上一根及更早的数据决策，在当前开盘执行；最后一根产生的 BUY 没有次日可成交。
+    if (i > warmup) {
+      const signal = decide(klines.slice(0, i))
+      if (signal === 'BUY' && shares === 0 && i < klines.length - 1) {
+        if (!Number.isFinite(k.open) || k.open <= 0) {
+          finalEquity = track(i)
+          continue
+        }
+        // 全仓买入（按一手对齐），成交价使用当前开盘价。
+        const perLotCost = k.open * lotSize * (1 + buyFeeRate)
         const buyable = Math.floor(cash / perLotCost) * lotSize
         if (buyable >= lotSize) {
-          const spend = buyable * k.close
+          const spend = buyable * k.open
           const fee = spend * buyFeeRate
           cash -= spend + fee
           shares = buyable
           entryIndex = i
-          entryPrice = k.close
+          entryPrice = k.open
           entryCost = spend + fee
         }
       } else if (signal === 'SELL' && shares > 0) {
-        // 清仓卖出
-        const proceeds = shares * k.close
+        if (!Number.isFinite(k.open) || k.open <= 0) {
+          finalEquity = track(i)
+          continue
+        }
+        // 清仓卖出，成交价使用当前开盘价。
+        const proceeds = shares * k.open
         const fee = proceeds * sellFeeRate
         cash += proceeds - fee
         trades.push({
           entryDate: klines[entryIndex].date,
           exitDate: k.date,
           entryPrice,
-          exitPrice: k.close,
+          exitPrice: k.open,
           returnPercent: ((proceeds - fee - entryCost) / entryCost) * 100,
           days: i - entryIndex,
         })

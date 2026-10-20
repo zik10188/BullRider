@@ -68,6 +68,24 @@ test('部分卖出：剩余持仓保留', () => {
   assert.equal(acc.positions[0]?.shares, 8900)
 })
 
+test('卖出参数非法：负数、零、小数和超持仓都必须拒绝且不修改账户', () => {
+  const acc = createAccount(100_000)
+  buy(acc, '600519', '贵州茅台', 10)
+  const before = JSON.stringify(acc)
+  for (const shares of [-100, 0, 1.5, 10_000]) {
+    assert.throws(() => sell(acc, '600519', '贵州茅台', 10, {}, shares))
+    assert.equal(JSON.stringify(acc), before, `卖出 ${shares} 股后账户不应变化`)
+  }
+})
+
+test('卖出价格无效：拒绝且不修改账户', () => {
+  const acc = createAccount(100_000)
+  buy(acc, '600519', '贵州茅台', 10)
+  const before = JSON.stringify(acc)
+  assert.throws(() => sell(acc, '600519', '贵州茅台', -1), /卖出价格无效/)
+  assert.equal(JSON.stringify(acc), before)
+})
+
 test('指定金额买入：预算 5000 元 → 只买 4 手，现金大量保留', () => {
   const acc = createAccount(100_000)
   const res = buy(acc, '600519', '贵州茅台', 10, {}, 5000)

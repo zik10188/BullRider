@@ -139,7 +139,7 @@ export default function ScreenerView() {
           </div>
           <div className="field">
             <label htmlFor="scan-cap">精算上限（只）</label>
-            <input id="scan-cap" inputMode="numeric" autoComplete="off" spellCheck={false} value={maxCandidates}
+            <input id="scan-cap" inputMode="numeric" min={10} max={100} autoComplete="off" spellCheck={false} value={maxCandidates}
               onChange={(e) => setMaxCandidates(e.target.value)} style={{ width: 90 }} />
           </div>
           <button className="btn btn-primary" disabled={loading} onClick={() => void run()}>

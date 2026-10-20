@@ -34,7 +34,13 @@ function retsToWeights(rets: number[]): number[] {
 /** 子策略在窗口内的回测收益%（复用回测引擎同一套账本，保证与回测页口径一致） */
 function subBacktestReturn(window: KLine[], p: SignalProvider): number {
   try {
-    return runBacktest('', p.name, window, (h) => p.evaluate(h).kind).totalReturnPercent
+    return runBacktest(
+      '',
+      p.name,
+      window,
+      (h) => p.evaluate(h).kind,
+      { warmup: Math.max(0, p.minBars - 1) },
+    ).totalReturnPercent
   } catch {
     return 0 // 窗口内算不动（数据/异常）→ 记 0，靠保底权重兜底
   }

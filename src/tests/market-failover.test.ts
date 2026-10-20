@@ -66,6 +66,34 @@ test('熔断：默认阈值为 3（不传参时连续失败 3 次即熔断，防
   assert.equal(backupCalls.n, 4)
 })
 
+test('熔断：备用源也失败时，冷却期内仍绝不回撞熔断主源', async () => {
+  const mainCalls = { n: 0 }
+  const backupCalls = { n: 0 }
+  let backupShouldFail = false
+  const backup: MarketDataProvider = {
+    name: 'backup',
+    async daily() {
+      backupCalls.n++
+      if (backupShouldFail) throw new Error('boom from backup')
+      return [kl]
+    },
+    async quote() {
+      throw new Error('not used')
+    },
+  }
+  const pool = new ProviderPool(
+    [fakeProvider('main', 3, mainCalls), backup],
+    undefined,
+    3,
+    60_000,
+  )
+  for (let i = 0; i < 3; i++) await pool.run((p) => p.daily('600000'), '日K')
+  backupShouldFail = true
+  await assert.rejects(() => pool.run((p) => p.daily('600000'), '日K'), /boom from backup/)
+  assert.equal(mainCalls.n, 3, '主源进入冷却后，即使备用也失败也不能再次访问主源')
+  assert.equal(backupCalls.n, 4)
+})
+
 test('熔断：所有数据源都挂 → 抛最后一次的错误', async () => {
   const pool = new ProviderPool([fakeProvider('main', 99, { n: 0 }), fakeProvider('backup', 99, { n: 0 })], undefined, 5, 60_000)
   await assert.rejects(() => pool.run((p) => p.quote('600000'), '行情'), /boom from backup/)

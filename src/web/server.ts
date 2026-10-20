@@ -28,6 +28,7 @@ import { computePriceGuide } from '../price-guide/compute'
 import * as screener from '../screener/screener'
 import * as track from '../track/tracker'
 import type { RiskConfig } from '../risk/types'
+import { normalizeLlmBaseUrl, requiresNewKeyForEndpointChange, resolveLlmConfig, type LlmConfig } from './llm-config'
 
 const PORT = Number(process.env.PORT) || 3080
 const DIST = resolve(process.cwd(), 'web', 'dist')
@@ -80,13 +81,6 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 function num(v: string | null, fallback: number): number {
   const n = v ? Number(v) : NaN
   return Number.isFinite(n) && n > 0 ? n : fallback
-}
-
-/** 前端传来的大模型配置（服务端不落盘存储） */
-interface LlmConfig {
-  baseUrl: string
-  apiKey: string
-  model: string
 }
 
 /** 调用 OpenAI 兼容的 /chat/completions 端点，返回回复文本 */
@@ -324,10 +318,33 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
     if (body.llm && typeof body.llm === 'object') {
       const l = body.llm as { baseUrl?: unknown; model?: unknown; contextWindow?: unknown; apiKey?: unknown }
       const llm: prefsStore.LlmPrefs = { ...cur.llm }
-      if (typeof l.baseUrl === 'string') llm.baseUrl = l.baseUrl
+      const newApiKey = typeof l.apiKey === 'string' ? l.apiKey.trim() : ''
+      if (typeof l.baseUrl === 'string') {
+        const rawBaseUrl = l.baseUrl.trim()
+        if (!rawBaseUrl) {
+          llm.baseUrl = ''
+          delete llm.encApiKey
+        } else {
+          const baseUrl = normalizeLlmBaseUrl(rawBaseUrl)
+          if (!baseUrl) {
+            json(res, 400, { ok: false, message: '模型端点只支持不含账号密码的 HTTP/HTTPS 地址' })
+            return
+          }
+          if (requiresNewKeyForEndpointChange({
+            currentBaseUrl: cur.llm?.baseUrl,
+            nextBaseUrl: baseUrl,
+            hasStoredKey: Boolean(cur.llm?.encApiKey),
+            hasNewKey: Boolean(newApiKey),
+          })) {
+            json(res, 400, { ok: false, message: '切换模型端点前请重新填写 API Key；服务端不会把已保存 Key 自动发往新地址' })
+            return
+          }
+          llm.baseUrl = baseUrl
+        }
+      }
       if (typeof l.model === 'string') llm.model = l.model
       if (typeof l.contextWindow === 'number' && l.contextWindow > 0) llm.contextWindow = Math.floor(l.contextWindow)
-      if (typeof l.apiKey === 'string' && l.apiKey.trim()) llm.encApiKey = await prefsStore.encryptSecret(l.apiKey.trim())
+      if (newApiKey) llm.encApiKey = await prefsStore.encryptSecret(newApiKey)
       next.llm = llm
     }
     await prefsStore.savePrefs(next)
@@ -417,12 +434,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
       return
     }
     const body = await readBody(req)
-    const opts: screener.ScanOptions = {
-      minPrice: Math.max(0.5, Number(body.minPrice) || screener.DEFAULT_SCAN_OPTIONS.minPrice),
-      maxPrice: Math.max(1, Number(body.maxPrice) || screener.DEFAULT_SCAN_OPTIONS.maxPrice),
-      maxCandidates: Math.min(300, Math.max(10, Number(body.maxCandidates) || screener.DEFAULT_SCAN_OPTIONS.maxCandidates)),
-      minAmount: Math.max(0, Number(body.minAmount) || screener.DEFAULT_SCAN_OPTIONS.minAmount),
-    }
+    const opts = screener.normalizeScanOptions(body)
     scanInFlight = true
     try {
       const report = await screener.runScan(opts, (symbol, days) => ctx.marketData.daily(symbol, { days }), (m) => console.log(`[扫描] ${m}`))
@@ -482,18 +494,25 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
       ? (body.symbols as unknown[]).filter((s): s is string => typeof s === 'string' && /^\d{6}$/.test(s)).slice(0, 5)
       : []
     const strategy = typeof body.strategy === 'string' && body.strategy ? body.strategy : undefined
-    // Key 优先用请求里带的（兼容旧流程），否则用服务端加密存储的那把
-    let apiKey = typeof cfg.apiKey === 'string' ? cfg.apiKey : ''
-    let baseUrl = cfg.baseUrl ?? ''
-    let model = cfg.model ?? ''
-    if (!apiKey || !baseUrl || !model) {
-      const p = await prefsStore.loadPrefs()
-      if (!apiKey && p.llm?.encApiKey) apiKey = (await prefsStore.decryptSecret(p.llm.encApiKey)) ?? ''
-      if (!baseUrl && p.llm?.baseUrl) baseUrl = p.llm.baseUrl
-      if (!model && p.llm?.model) model = p.llm.model
+    const requested = {
+      baseUrl: typeof cfg.baseUrl === 'string' ? cfg.baseUrl : '',
+      apiKey: typeof cfg.apiKey === 'string' ? cfg.apiKey : '',
+      model: typeof cfg.model === 'string' ? cfg.model : '',
     }
-    if (!baseUrl || !apiKey || !model) {
-      json(res, 400, { ok: false, message: '请先在"模型设置"里保存服务端点地址、API Key 和模型名' })
+    // 请求未显式携带 Key 时，端点、模型和 Key 必须全部使用服务端保存的那一组。
+    // 防止请求方让已保存 Key 跟随任意 baseUrl 发往第三方地址。
+    let stored: { baseUrl?: string; model?: string; apiKey?: string } = {}
+    if (!requested.apiKey.trim()) {
+      const p = await prefsStore.loadPrefs()
+      stored = {
+        baseUrl: p.llm?.baseUrl,
+        model: p.llm?.model,
+        apiKey: p.llm?.encApiKey ? (await prefsStore.decryptSecret(p.llm.encApiKey)) ?? '' : '',
+      }
+    }
+    const resolved = resolveLlmConfig(requested, stored)
+    if (!resolved.ok) {
+      json(res, 400, { ok: false, message: resolved.reason })
       return
     }
     if (messages.length === 0) {
@@ -502,7 +521,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
     }
     try {
       const system = await buildCoachSystem(ctx, symbols, strategy)
-      const reply = await callOpenAICompatible({ baseUrl, apiKey, model }, [{ role: 'system', content: system }, ...messages])
+      const reply = await callOpenAICompatible(resolved.config, [{ role: 'system', content: system }, ...messages])
       json(res, 200, { ok: true, reply })
     } catch (err) {
       const text = (err as Error).name === 'AbortError' ? '大模型响应超时（60秒）' : (err as Error).message

@@ -21,7 +21,7 @@ export interface BacktestOptions {
   buyFeeRate?: number
   /** 卖出费率（佣金+印花税，默认 万7.5=0.00075） */
   sellFeeRate?: number
-  /** 前面跳过多少根K线作为策略暖机（默认 11，够算 MA5/MA10） */
+  /** 前面跳过多少根K线作为策略暖机；暖机后还要等下一根开盘才成交 */
   warmup?: number
 }
 

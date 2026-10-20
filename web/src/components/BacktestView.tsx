@@ -98,7 +98,7 @@ export default function BacktestView() {
         <>
           <section className="card" style={{ marginTop: 16 }}>
             <h2>{result.name} ({result.symbol}) · {result.strategy}</h2>
-            <p className="sub">{result.periodStart} ~ {result.periodEnd}（共 {result.barCount} 根日K）· 初始资金 ¥{result.initialCapital.toLocaleString()}</p>
+            <p className="sub">{result.periodStart} ~ {result.periodEnd}（共 {result.barCount} 根日K）· 初始资金 ¥{result.initialCapital.toLocaleString()} · 信号次日开盘成交</p>
             <div className="metric-grid">
               {metrics.map((m) => (
                 <div className="metric" key={m.label}>

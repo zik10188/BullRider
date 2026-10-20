@@ -52,14 +52,34 @@ export interface ScanOptions {
   minAmount: number
 }
 
+/** 单次扫描允许精算的个股硬上限。200 只曾直接导致数据源风控封禁。 */
+export const MAX_SCAN_CANDIDATES = 100
+
 export const DEFAULT_SCAN_OPTIONS: ScanOptions = {
   // 总资产 1 万档：最高 25 元保证一手 ≤ 2500 元（占总资产 25%，强制留分散空间），
   // 最低 5 元剔除低价股区（面值退市高危 + 僵尸股密集）；
   // 精算上限 100：200 只的请求量曾连续两天触发东财 IP 风控（第 1 天 65/200 失败、第 2 天彻底拒连），降回 100 保数据源安全（2026-10-14 用户定）
   minPrice: 5,
   maxPrice: 25,
-  maxCandidates: 100,
+  maxCandidates: MAX_SCAN_CANDIDATES,
   minAmount: 20_000_000, // 日成交额 ≥ 2000 万，过滤僵尸股
+}
+
+/** 统一校验前端或 API 传入的扫描参数，服务端硬上限不依赖前端。 */
+export function normalizeScanOptions(input: Partial<Record<keyof ScanOptions, unknown>> = {}): ScanOptions {
+  const numberOr = (value: unknown, fallback: number): number => {
+    const n = Number(value)
+    return Number.isFinite(n) && n > 0 ? n : fallback
+  }
+  return {
+    minPrice: Math.max(0.5, numberOr(input.minPrice, DEFAULT_SCAN_OPTIONS.minPrice)),
+    maxPrice: Math.max(1, numberOr(input.maxPrice, DEFAULT_SCAN_OPTIONS.maxPrice)),
+    maxCandidates: Math.min(
+      MAX_SCAN_CANDIDATES,
+      Math.max(10, Math.floor(numberOr(input.maxCandidates, DEFAULT_SCAN_OPTIONS.maxCandidates))),
+    ),
+    minAmount: Math.max(0, numberOr(input.minAmount, DEFAULT_SCAN_OPTIONS.minAmount)),
+  }
 }
 
 export interface SnapshotRow {

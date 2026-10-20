@@ -129,6 +129,30 @@ test('settleCheck：回放发现错过的 SELL → 按当日收盘结算，days 
   }
 })
 
+test('settleCheck：旧回合先 SELL 又出现新 BUY 时，只结算旧回合，不把新 BUY 超时', async () => {
+  const dir = await tempDir()
+  try {
+    const s = store()
+    s.signals.push({ code: '600000', date: kl120[4].date, price: 10, source: 'replay' })
+    await saveTrack(s, dir)
+    const deps = depsOf(kl120, (i) => {
+      if (i === 14) return 'SELL'
+      if (i === 100 || i === 110) return 'BUY'
+      return 'HOLD'
+    })
+    const r = await settleCheck(deps, dir)
+    assert.equal(r.settled, 1)
+    const loaded = await loadTrack(dir)
+    assert.equal(loaded.signals.length, 3)
+    assert.equal(loaded.signals[0].exit?.reason, 'SELL')
+    assert.equal(loaded.signals[1].exit, undefined, '新 BUY 在途跨度只有 19 根，不应超时')
+    assert.equal(loaded.signals[2].exit, undefined, '新 BUY 在途跨度只有 9 根，不应超时')
+    assert.equal(derivePending(loaded)[0].entries.length, 2)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test(`settleCheck：一直不喊 SELL 且跨度超过 ${TIMEOUT_BARS} 根 → 按最新收盘强制结算（超时）`, async () => {
   const dir = await tempDir()
   try {

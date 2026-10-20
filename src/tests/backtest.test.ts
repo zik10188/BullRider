@@ -14,8 +14,8 @@ import type { SignalProvider } from '../signal/provider'
 /** 固定价格序列：30 根，收盘全是 10 元 */
 const klines = series(Array<number>(30).fill(10))
 
-test('回测账目：第10根买入、第20根卖出，费用与盈亏手工核对', () => {
-  // 第10根(index 10)买入，第20根(index 20)卖出，价格都是 10
+test('回测账目：第10根收盘发买入信号、下一根开盘成交，费用与盈亏手工核对', () => {
+  // 第10根收盘发买入信号并在第11根开盘成交；第20根收盘发卖出信号并在第21根开盘成交
   const decide = (history: unknown[]): 'BUY' | 'SELL' | 'HOLD' => {
     const i = history.length - 1
     if (i === 10) return 'BUY'
@@ -88,4 +88,37 @@ test('回测买入持有基准：统一从区间第一根起算（与 warmup 无
   const b = runBacktest('test', 'b', kl, () => 'HOLD', { capital: 100_000, warmup: 4 })
   assert.ok(closeTo(a.buyHoldReturnPercent, (15 / 10 - 1) * 100))
   assert.ok(closeTo(b.buyHoldReturnPercent, (15 / 10 - 1) * 100))
+})
+
+test('回测成交口径：上一根收盘出信号，下一根开盘成交', () => {
+  const kl = [
+    { date: '2026-01-01', open: 10, close: 11, high: 11, low: 10, volume: 1000, amount: 0 },
+    { date: '2026-01-02', open: 20, close: 21, high: 21, low: 20, volume: 1000, amount: 0 },
+    { date: '2026-01-03', open: 30, close: 31, high: 31, low: 30, volume: 1000, amount: 0 },
+    { date: '2026-01-04', open: 40, close: 41, high: 41, low: 40, volume: 1000, amount: 0 },
+  ]
+  const decide = (history: typeof kl): 'BUY' | 'SELL' | 'HOLD' => {
+    if (history.length === 1) return 'BUY'
+    if (history.length === 3) return 'SELL'
+    return 'HOLD'
+  }
+  const result = runBacktest('test', 'next-open', kl, decide, { capital: 100_000, warmup: 0 })
+  assert.equal(result.tradeCount, 1)
+  assert.equal(result.trades[0].entryDate, '2026-01-02')
+  assert.equal(result.trades[0].entryPrice, 20)
+  assert.equal(result.trades[0].exitDate, '2026-01-04')
+  assert.equal(result.trades[0].exitPrice, 40)
+})
+
+test('回测成交口径：最后一根才出现的 BUY 不成交', () => {
+  const kl = series([10, 11, 12, 13])
+  const result = runBacktest(
+    'test',
+    'last-buy',
+    kl,
+    (history) => history.length === kl.length - 1 ? 'BUY' : 'HOLD',
+    { capital: 100_000, warmup: 0 },
+  )
+  assert.equal(result.tradeCount, 0)
+  assert.ok(closeTo(result.finalEquity, 100_000))
 })

@@ -88,9 +88,16 @@ export function sell(
   shares?: number,
 ): PaperFill {
   const { sellFeeRate = 0.00075 } = config
+  if (!Number.isFinite(price) || price <= 0) throw new Error(`卖出价格无效: ${price}`)
   const pos = account.positions.find((p) => p.symbol === symbol)
   if (!pos || pos.shares === 0) throw new Error(`没有持有 ${symbol}`)
-  const sellShares = Math.min(shares ?? pos.shares, pos.shares)
+  if (shares != null && (!Number.isFinite(shares) || !Number.isInteger(shares) || shares <= 0)) {
+    throw new Error(`卖出股数必须是正整数: ${shares}`)
+  }
+  if (shares != null && shares > pos.shares) {
+    throw new Error(`卖出股数 ${shares} 超过持仓 ${pos.shares}`)
+  }
+  const sellShares = shares ?? pos.shares
   const amount = sellShares * price
   const fee = amount * sellFeeRate
   const profit = amount - fee - pos.avgCost * sellShares

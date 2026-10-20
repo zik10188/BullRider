@@ -4,7 +4,15 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { fetchSnapshotPage, filterSnapshot, isListedLongEnough, type SnapshotRow } from '../screener/screener'
+import {
+  DEFAULT_SCAN_OPTIONS,
+  MAX_SCAN_CANDIDATES,
+  fetchSnapshotPage,
+  filterSnapshot,
+  isListedLongEnough,
+  normalizeScanOptions,
+  type SnapshotRow,
+} from '../screener/screener'
 import { DEFAULT_ETF_LIST, loadEtfList } from '../screener/etf-list'
 
 const OPTS = { minPrice: 3, maxPrice: 20, maxCandidates: 100, minAmount: 20_000_000 }
@@ -13,6 +21,22 @@ const TODAY = new Date('2026-10-12T10:00:00+08:00')
 function row(partial: Partial<SnapshotRow>): SnapshotRow {
   return { code: '600000', name: '某某股份', price: 10, changePercent: 1, amount: 50_000_000, listDate: '20150101', ...partial }
 }
+
+test('扫描参数：服务端硬上限 100，不接受 300 只请求', () => {
+  assert.equal(MAX_SCAN_CANDIDATES, 100)
+  assert.equal(normalizeScanOptions({ maxCandidates: 300 }).maxCandidates, 100)
+  assert.equal(normalizeScanOptions({ maxCandidates: 100 }).maxCandidates, 100)
+  assert.equal(normalizeScanOptions({ maxCandidates: 5 }).maxCandidates, 10)
+  assert.deepEqual(normalizeScanOptions({}), DEFAULT_SCAN_OPTIONS)
+})
+
+test('扫描参数：非法输入回退默认值，合法小数价格保留', () => {
+  const opts = normalizeScanOptions({ minPrice: '4.5', maxPrice: 'abc', maxCandidates: '20.9', minAmount: '0' })
+  assert.equal(opts.minPrice, 4.5)
+  assert.equal(opts.maxPrice, DEFAULT_SCAN_OPTIONS.maxPrice)
+  assert.equal(opts.maxCandidates, 20)
+  assert.equal(opts.minAmount, DEFAULT_SCAN_OPTIONS.minAmount)
+})
 
 test('硬过滤：价格区间内外', () => {
   const out = filterSnapshot(

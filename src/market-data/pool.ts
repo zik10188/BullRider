@@ -25,12 +25,10 @@ export class ProviderPool {
     private cooldownMs = 5 * 60_000,
   ) {}
 
-  /** 按熔断状态排序：未熔断在前，同级保持注册优先级 */
-  private ordered(): MarketDataProvider[] {
-    return this.providers
-      .map((p, i) => ({ p, i, tripped: Date.now() < (this.openUntil.get(p.name) ?? 0) }))
-      .sort((a, b) => (a.tripped ? 1 : 0) - (b.tripped ? 1 : 0) || a.i - b.i)
-      .map((x) => x.p)
+  /** 冷却期内的数据源完全不参与请求，保留注册顺序作为同级优先级 */
+  private available(): MarketDataProvider[] {
+    const now = Date.now()
+    return this.providers.filter((p) => now >= (this.openUntil.get(p.name) ?? 0))
   }
 
   private record(name: string, ok: boolean): void {
@@ -51,10 +49,11 @@ export class ProviderPool {
 
   /** 依次尝试各家执行同一操作，全部失败抛最后一次的错误 */
   async run<T>(op: (p: MarketDataProvider) => Promise<T>, what: string): Promise<T> {
-    const ordered = this.ordered()
-    if (ordered.length === 0) throw new Error('未注册行情供应商')
+    const available = this.available()
+    if (this.providers.length === 0) throw new Error('未注册行情供应商')
+    if (available.length === 0) throw new Error('所有行情供应商均处于熔断冷却期')
     let lastErr: unknown
-    for (const p of ordered) {
+    for (const p of available) {
       try {
         const result = await op(p)
         this.record(p.name, true)
