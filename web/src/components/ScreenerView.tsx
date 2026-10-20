@@ -259,6 +259,7 @@ export default function ScreenerView() {
           <p className="sub">
             给策略每次喊买记账，等它喊卖（或超 60 个交易日）按收盘价验收。「回合」= 一段连续买入 + 最终卖出，与回测同口径；
             连续喊买逐条另计为「信号」，用于观察追高惩罚。胜率低不代表差——配合盈亏比一起看。
+            分红送转导致历史前复权价格变化时，会自动重算在途信号的入场基准，避免收益被除权跳变扭曲。
             注意：下方平均收益/胜率只统计<b>已结算</b>回合，在途回合的实时浮盈亏不计入，等结算后才进统计。
           </p>
           {track.roundLayer.settled === 0 && track.roundLayer.pending === 0 ? (
@@ -274,6 +275,7 @@ export default function ScreenerView() {
                 <Stat label="平均持仓" value={track.roundLayer.avgDays > 0 ? `${track.roundLayer.avgDays.toFixed(0)} 天` : '—'} />
                 <Stat label="最大连亏" value={`${track.roundLayer.maxConsecutiveLosses} 次`} />
                 <Stat label="在途回合" value={String(track.roundLayer.pending)} />
+                <Stat label="除权修正" value={`${track.adjustedEntries} 条`} />
               </div>
               <p className="sub" style={{ marginTop: 0 }}>
                 信号层：{track.signalLayer.settled} 条已结算 · 胜率 {track.signalLayer.winRate.toFixed(0)}% · 平均 {pct(track.signalLayer.avgReturn)}

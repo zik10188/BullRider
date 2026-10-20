@@ -451,7 +451,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
           await new Promise((r) => setTimeout(r, 150)) // 每只之间限速，保护免费接口
         }
         const st = await track.settleCheck(deps)
-        console.log(`[追踪] 结算检查完成：在途 ${st.checked} 组，本次结算 ${st.settled} 组`)
+        console.log(`[追踪] 结算检查完成：在途 ${st.checked} 组，本次结算 ${st.settled} 组，除权修正 ${st.adjusted} 条`)
       } catch (err) {
         console.log(`[追踪] 失败（不影响扫描结果）: ${(err as Error).message}`)
       }

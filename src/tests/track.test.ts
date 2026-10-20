@@ -10,11 +10,13 @@ import {
   deriveRounds,
   derivePending,
   layerStats,
+  rebasePendingPrices,
   settleCheck,
   replayStock,
   loadTrack,
   saveTrack,
   deleteStock,
+  trackStats,
   type TrackStore,
   type TrackDeps,
   type TrackEvent,
@@ -97,6 +99,39 @@ test('layerStats：胜率/平均盈亏/盈亏比/最大连亏 手工核对', () 
   assert.equal(st.maxConsecutiveLosses, 2) // -5、-3 连续两亏
 })
 
+test('除权修正：同一信号日收盘价被重算时修正在途入场价并保留审计记录', () => {
+  const s = store()
+  const original = kl120[4].close
+  const current = original * 0.8
+  s.signals.push(
+    { code: '600000', date: kl120[4].date, price: original, source: 'replay' },
+    { code: '600000', date: kl120[4].date, price: original, source: 'replay', exit: {
+      date: kl120[10].date,
+      price: kl120[10].close,
+      reason: 'SELL',
+      returnPercent: 1,
+    } },
+    { code: '000001', date: kl120[4].date, price: original, source: 'replay' },
+  )
+  const adjustedKlines = kl120.map((k, i) => i === 4 ? { ...k, close: current, high: current, low: current } : k)
+  assert.equal(rebasePendingPrices(s, '600000', adjustedKlines), 1)
+  assert.ok(closeTo(s.signals[0].price, current))
+  assert.ok(closeTo(s.signals[0].priceAdjustments?.[0]?.from ?? NaN, original))
+  assert.ok(closeTo(s.signals[0].priceAdjustments?.[0]?.factor ?? NaN, 0.8))
+  assert.equal(s.signals[1].price, original, '已结算信号不回改历史收益')
+  assert.equal(s.signals[2].price, original, '其他股票不受影响')
+  assert.equal(rebasePendingPrices(s, '600000', adjustedKlines), 0, '重复检查必须幂等')
+})
+
+test('除权修正：报价精度级差异不触发重基准', () => {
+  const s = store()
+  const price = kl120[4].close
+  s.signals.push({ code: '600000', date: kl120[4].date, price, source: 'scan' })
+  const noisy = kl120.map((k, i) => i === 4 ? { ...k, close: price + 0.0001, high: price, low: price } : k)
+  assert.equal(rebasePendingPrices(s, '600000', noisy), 0)
+  assert.equal(s.signals[0].price, price)
+})
+
 /** 假依赖：固定K线 + 按当前窗口末位索引出票的脚本策略 */
 function depsOf(klines: KLine[], script: (i: number) => 'BUY' | 'SELL' | 'HOLD'): TrackDeps {
   return {
@@ -124,6 +159,25 @@ test('settleCheck：回放发现错过的 SELL → 按当日收盘结算，days 
     assert.equal(entry.exit?.reason, 'SELL')
     assert.ok(closeTo(entry.exit.price, 10 + 14 * 0.1))
     assert.equal(entry.exit.days, 10)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('settleCheck：除权导致入场价重算后，SELL 收益按修正基准计算', async () => {
+  const dir = await tempDir()
+  try {
+    const s = store()
+    const original = kl120[4].close
+    const rebased = original * 0.8
+    s.signals.push({ code: '600000', date: kl120[4].date, price: original, source: 'replay' })
+    await saveTrack(s, dir)
+    const adjustedKlines = kl120.map((k, i) => i === 4 ? { ...k, close: rebased, high: rebased, low: rebased } : k)
+    const r = await settleCheck(depsOf(adjustedKlines, (i) => (i === 14 ? 'SELL' : 'HOLD')), dir)
+    assert.equal(r.adjusted, 1)
+    const [entry] = (await loadTrack(dir)).signals
+    assert.ok(closeTo(entry.price, rebased))
+    assert.ok(closeTo(entry.exit?.returnPercent ?? NaN, (adjustedKlines[14].close / rebased - 1) * 100))
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -208,6 +262,24 @@ test('replayStock：滑窗补历史入账并结算；同日K重跑幂等；次�
   }
 })
 
+test('replayStock：补历史已是最新日期时，仍会修正已有在途信号的除权价格', async () => {
+  const dir = await tempDir()
+  try {
+    const s = store()
+    const original = kl120[4].close
+    const rebased = original * 0.8
+    s.signals.push({ code: '600000', date: kl120[4].date, price: original, source: 'replay' })
+    s.replayed = { '600000': kl120[kl120.length - 1].date }
+    await saveTrack(s, dir)
+    const adjustedKlines = kl120.map((k, i) => i === 4 ? { ...k, close: rebased, high: rebased, low: rebased } : k)
+    const added = await replayStock('600000', '测试股', depsOf(adjustedKlines, () => 'HOLD'), dir)
+    assert.equal(added, 0)
+    assert.ok(closeTo((await loadTrack(dir)).signals[0].price, rebased))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('replayStock：行情接口故障 → 返回 0 不入账、不写 replayed 标记（下次扫描自动重试）', async () => {
   const dir = await tempDir()
   try {
@@ -239,6 +311,25 @@ test('deleteStock：删指定股全部记录并清 replayed 标记，其他股�
     assert.equal(loaded.replayed?.['600000'], undefined, '补历史标记一并清除（下次触发 BUY 会重新补）')
     assert.equal(loaded.replayed?.['000001'], '2026-01-07')
     assert.equal(await deleteStock('600000', dir), 0, '再删已不存在的股 → 0')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('trackStats：统计曾发生除权修正的信号条数', async () => {
+  const dir = await tempDir()
+  try {
+    const s = store()
+    s.signals.push({
+      code: '600000',
+      date: kl120[4].date,
+      price: 8.32,
+      source: 'replay',
+      priceAdjustments: [{ detectedAt: kl120[10].date, from: 10.4, to: 8.32, factor: 0.8 }],
+    })
+    await saveTrack(s, dir)
+    const stats = await trackStats(async () => ({ price: 9 }), dir)
+    assert.equal(stats.adjustedEntries, 1)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

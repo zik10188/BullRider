@@ -14,6 +14,9 @@ import { resolve } from 'node:path'
 /** 在途超时线：超过这么多根K线还没等到 SELL，按最新收盘强制结算（约一个季度） */
 export const TIMEOUT_BARS = 60
 
+/** 同日期收盘价重基准阈值：过滤报价精度噪声，只处理真实的除权除息重算。 */
+const PRICE_REBASE_TOLERANCE = 1e-4
+
 const DEFAULT_DIR = resolve(process.cwd(), '.data')
 
 export type TrackSource = 'scan' | 'replay'
@@ -27,6 +30,13 @@ export interface SignalEntry {
   /** 信号日收盘价（入场基准） */
   price: number
   source: TrackSource
+  /** 分红送转等原因导致同日期前复权收盘价变化时的修正审计记录 */
+  priceAdjustments?: Array<{
+    detectedAt: string
+    from: number
+    to: number
+    factor: number
+  }>
   /** 被哪一次 SELL 事件结算：同一回合的所有 BUY 共享同一个 id */
   settleId?: string
   exit?: {
@@ -79,6 +89,34 @@ export function ingestSignals(store: TrackStore, code: string, name: string | un
     }
   }
   return added
+}
+
+/**
+ * 用当前数据源重新核对未结算信号的入场日收盘价。
+ * 同一历史日期的收盘价正常不会变化；若因分红送转导致前复权价格重算，
+ * 则把入场基准从旧价格改到当前复权口径，并记录原值以便审计。
+ */
+export function rebasePendingPrices(store: TrackStore, code: string, klines: KLine[]): number {
+  const closeByDate = new Map(klines.map((k) => [k.date, k.close]))
+  const detectedAt = klines[klines.length - 1]?.date ?? ''
+  let adjusted = 0
+  for (const signal of store.signals) {
+    if (signal.code !== code || signal.exit) continue
+    const current = closeByDate.get(signal.date)
+    if (!Number.isFinite(current) || current == null || current <= 0 || !Number.isFinite(signal.price) || signal.price <= 0) continue
+    const tolerance = Math.max(0.0005, Math.abs(signal.price) * PRICE_REBASE_TOLERANCE)
+    if (Math.abs(current - signal.price) <= tolerance) continue
+    const from = signal.price
+    signal.price = current
+    ;(signal.priceAdjustments ??= []).push({
+      detectedAt,
+      from,
+      to: current,
+      factor: current / from,
+    })
+    adjusted++
+  }
+  return adjusted
 }
 
 /** 已结算回合（回合层样本，与回测 trade 同口径） */
@@ -256,9 +294,19 @@ export async function replayStock(code: string, name: string | undefined, deps: 
     deps.log?.(`补历史 ${code}${name ? ` ${name}` : ''} 失败（行情接口异常，下次扫描自动重试）: ${(err as Error).message}`)
     return 0
   }
-  if (klines.length < MIN_BARS) return 0 // 次新股/数据不足：跳过
+  const rebased = rebasePendingPrices(store, code, klines)
+  if (klines.length < MIN_BARS) {
+    if (rebased > 0) await saveTrack(store, dir)
+    return 0 // 次新股/数据不足：跳过
+  }
   const lastDate = klines[klines.length - 1].date
-  if (store.replayed?.[code] === lastDate) return 0
+  if (store.replayed?.[code] === lastDate) {
+    if (rebased > 0) {
+      await saveTrack(store, dir)
+      deps.log?.(`除权校验 ${code}${name ? ` ${name}` : ''}：修正 ${rebased} 条在途信号价格`)
+    }
+    return 0
+  }
   const events: TrackEvent[] = []
   for (let i = MIN_BARS - 1; i < klines.length; i++) {
     let kind: SignalKind
@@ -273,7 +321,7 @@ export async function replayStock(code: string, name: string | undefined, deps: 
   store.replayed = { ...store.replayed, [code]: lastDate }
   backfillDays(store, code, klines)
   await saveTrack(store, dir)
-  deps.log?.(`补历史 ${code}${name ? ` ${name}` : ''}：日K ${klines.length} 根，入账 ${added} 条`)
+  deps.log?.(`补历史 ${code}${name ? ` ${name}` : ''}：日K ${klines.length} 根，入账 ${added} 条${rebased > 0 ? `，除权修正 ${rebased} 条` : ''}`)
   return added
 }
 
@@ -282,10 +330,11 @@ export async function replayStock(code: string, name: string | undefined, deps: 
  * 回放完仍无 SELL 且在途跨度超过 TIMEOUT_BARS → 按最新收盘强制结算（TIMEOUT）。
  * 返回本次结算的回合数与检查的股票数。
  */
-export async function settleCheck(deps: TrackDeps, dir: string = DEFAULT_DIR): Promise<{ settled: number; checked: number }> {
+export async function settleCheck(deps: TrackDeps, dir: string = DEFAULT_DIR): Promise<{ settled: number; checked: number; adjusted: number }> {
   const store = await loadTrack(dir)
   const groups = derivePending(store)
   let settled = 0
+  let adjusted = 0
   for (const g of groups) {
     let klines: KLine[]
     try {
@@ -294,6 +343,7 @@ export async function settleCheck(deps: TrackDeps, dir: string = DEFAULT_DIR): P
       continue // 行情拉不到（停牌/退市）：保持在途，下次再查
     }
     if (klines.length === 0) continue
+    adjusted += rebasePendingPrices(store, g.code, klines)
     const events: TrackEvent[] = []
     for (let i = 0; i < klines.length; i++) {
       const k = klines[i]
@@ -334,7 +384,7 @@ export async function settleCheck(deps: TrackDeps, dir: string = DEFAULT_DIR): P
     await new Promise((r) => setTimeout(r, 100)) // 限速，保护免费接口
   }
   await saveTrack(store, dir)
-  return { settled, checked: groups.length }
+  return { settled, checked: groups.length, adjusted }
 }
 
 // ================= 统计输出 =================
@@ -362,6 +412,8 @@ export interface TrackStats {
   roundLayer: LayerStats
   perStock: PerStockStats[]
   pending: PendingView[]
+  /** 曾经因除权除息重算过入场价的信号条数 */
+  adjustedEntries: number
 }
 
 /** 全账本统计：两层口径 + 每股回合表现 + 在途回合（含实时浮盈，行情拉不到则留空） */
@@ -410,5 +462,11 @@ export async function trackStats(quote: (symbol: string) => Promise<{ price: num
       floatPercent: currentPrice != null ? (currentPrice / g.entries[0].price - 1) * 100 : undefined,
     })
   }
-  return { signalLayer, roundLayer, perStock, pending }
+  return {
+    signalLayer,
+    roundLayer,
+    perStock,
+    pending,
+    adjustedEntries: store.signals.filter((s) => (s.priceAdjustments?.length ?? 0) > 0).length,
+  }
 }

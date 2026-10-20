@@ -290,6 +290,7 @@ export interface TrackStats {
   roundLayer: TrackLayerStats
   perStock: Array<{ code: string; name?: string; rounds: number; winRate: number; avgReturn: number; pending: number }>
   pending: Array<{ code: string; name?: string; entryDate: string; entryPrice: number; currentPrice?: number; floatPercent?: number }>
+  adjustedEntries: number
 }
 
 export const fetchTrackStats = (): Promise<TrackStats> => request('/api/track/stats')
