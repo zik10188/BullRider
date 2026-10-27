@@ -212,7 +212,7 @@ export default function ChatView() {
             </div>
             <div className="field">
               <label htmlFor="llm-window">上下文窗口（token，满了自动压缩历史）</label>
-              <input id="llm-window" inputMode="numeric" autoComplete="off" value={settings.contextWindow} onChange={(e) => setSettings({ ...settings, contextWindow: Number(e.target.value) || 32000 })} style={{ width: 140 }} />
+              <input id="llm-window" className="field-medium" inputMode="numeric" autoComplete="off" value={settings.contextWindow} onChange={(e) => setSettings({ ...settings, contextWindow: Number(e.target.value) || 32000 })} />
             </div>
             <div className="controls-row">
               <button className="btn btn-primary" onClick={() => { void saveSettings() }}>保存设置</button>
@@ -223,7 +223,7 @@ export default function ChatView() {
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <div className="chat-context controls-row">
           <div className="field">
             <label htmlFor="chat-strategy">信号策略（对所有标的生效）</label>
@@ -236,7 +236,7 @@ export default function ChatView() {
 
         {history.length > 0 ? (
           <>
-            <p className="fav-empty" style={{ margin: '0 0 4px' }}>
+            <p className="fav-empty chat-scope">
               AI 的视野：你最近查询过的 {Math.min(history.length, 5)} 只股票（每次对话自动带上它们的实时行情与信号，✕ 可移除）：
             </p>
             <FavChips
@@ -246,7 +246,7 @@ export default function ChatView() {
             />
           </>
         ) : (
-          <p className="fav-empty" style={{ margin: '0 0 4px' }}>还没有查询记录。去"行情"或"回测"页查几只股票，AI 就能看到它们了。</p>
+          <p className="fav-empty chat-scope">还没有查询记录。去"行情"或"回测"页查几只股票，AI 就能看到它们了。</p>
         )}
 
         <div className="chat-list" ref={listRef} aria-live="polite">

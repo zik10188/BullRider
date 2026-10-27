@@ -5,6 +5,8 @@ import { addRealTrade, deleteRealTrade, fetchQuote, fetchReal, type RealJournal,
 
 interface Toast { kind: 'ok' | 'err'; text: string }
 
+type Position = RealJournal['positions'][number]
+
 function pnlClass(v: number): string {
   return v > 0 ? 'up-text' : v < 0 ? 'down-text' : 'muted'
 }
@@ -22,6 +24,76 @@ function today(): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+/** 持仓摘要 + 可展开决策详情，替代原先 9 列横向大表 */
+function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolean; onToggle: () => void }) {
+  const digits = p.sellGuide?.available && p.sellGuide.tick === 0.001 ? 3 : 2
+  const price = (v: number) => v.toFixed(digits)
+  const signal = p.signal ? KIND_TEXT[p.signal.kind] : null
+  const risk = p.sellGuide?.available
+    ? (p.sellGuide.riskTriggered ? '已破防守线' : `距防守 ${p.sellGuide.distanceToStopPercent.toFixed(1)}%`)
+    : p.sellGuide?.reason ?? '行情异常'
+
+  return (
+    <article className={`position-item${expanded ? ' expanded' : ''}`}>
+      <div className="position-main">
+        <div className="position-title">
+          <div>
+            <span className="position-name">{p.name || '未命名股票'}</span>
+            <span className="position-code num">{p.code}</span>
+          </div>
+          <span className={`position-pnl num ${Number.isNaN(p.profit) ? 'muted' : pnlClass(p.profit)}`}>
+            {Number.isNaN(p.profit) ? '行情获取失败' : `${p.profit >= 0 ? '+' : ''}${p.profit.toFixed(2)}`}
+            {!Number.isNaN(p.profit) && <small>{p.profitPercent >= 0 ? '+' : ''}{p.profitPercent.toFixed(2)}%</small>}
+          </span>
+        </div>
+
+        <div className="position-facts">
+          <div><span>现价</span><b className="num">{Number.isNaN(p.currentPrice) ? '—' : p.currentPrice.toFixed(2)}</b></div>
+          <div><span>成本</span><b className="num">{p.avgCost.toFixed(2)}</b></div>
+          <div><span>持仓</span><b className="num">{p.shares.toLocaleString()} 股</b></div>
+          <div><span>市值</span><b className="num">{Number.isNaN(p.marketValue) ? '—' : `¥${Math.round(p.marketValue).toLocaleString()}`}</b></div>
+          <div><span>防守</span><b className="num">{p.sellGuide?.available ? price(p.sellGuide.effectiveStopPrice) : '—'}</b></div>
+          <div><span>状态</span><b className={p.sellGuide?.available && p.sellGuide.riskTriggered ? 'up-text' : 'muted'}>{risk}</b></div>
+          <div><span>赛马</span><b className={p.signal && signal ? signal.cls : ''}>{p.signal && signal ? signal.text : '数据不足'}</b></div>
+        </div>
+
+        <button className="position-toggle" type="button" onClick={onToggle} aria-expanded={expanded}>
+          {expanded ? '收起详情' : '查看详情'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="position-detail">
+          <div className="guide-panel">
+            <h3>卖出参考</h3>
+            {p.sellGuide?.available ? (
+              <>
+                <div className="guide-lines">
+                  <div><span>防守</span><b className="num">{price(p.sellGuide.effectiveStopPrice)}</b></div>
+                  <div><span>风控</span><b className="num">{price(p.sellGuide.stopLossPrice)}</b></div>
+                  <div><span>技术</span><b className="num">{price(p.sellGuide.protectionPrice)}</b></div>
+                  <div><span>止盈一</span><b className="num">{price(p.sellGuide.targets[0].price)}</b></div>
+                  <div><span>止盈二</span><b className="num">{price(p.sellGuide.targets[1].price)}</b></div>
+                </div>
+                <p>{p.sellGuide.advice}</p>
+              </>
+            ) : <p className="muted">{p.sellGuide?.reason ?? '行情异常，无法计算'}</p>}
+          </div>
+          <div className="guide-panel">
+            <h3>赛马建议</h3>
+            {p.signal ? (
+              <>
+                <div className={`signal-chip ${KIND_TEXT[p.signal.kind]?.cls ?? ''}`}>{KIND_TEXT[p.signal.kind]?.text ?? p.signal.kind}</div>
+                <p>{p.signal.reason}</p>
+              </>
+            ) : <p className="muted">数据不足，无法评估</p>}
+          </div>
+        </div>
+      )}
+    </article>
+  )
+}
+
 export default function RealView() {
   const [journal, setJournal] = useState<RealJournal | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,6 +108,7 @@ export default function RealView() {
   const [fee, setFee] = useState('')
   // 删除用两击确认（内置预览浏览器不支持 window.confirm）
   const [armedId, setArmedId] = useState<string | null>(null)
+  const [expandedCode, setExpandedCode] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setJournal(await fetchReal())
@@ -116,8 +189,8 @@ export default function RealView() {
           </div>
           <div className="field">
             <label htmlFor="real-code">股票代码</label>
-            <input id="real-code" name="code" inputMode="numeric" autoComplete="off" spellCheck={false} value={code}
-              onChange={(e) => setCode(e.target.value)} onBlur={(e) => void fillName(e.target.value)} style={{ width: 110 }} />
+            <input id="real-code" className="field-short" name="code" inputMode="numeric" autoComplete="off" spellCheck={false} value={code}
+              onChange={(e) => setCode(e.target.value)} onBlur={(e) => void fillName(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="real-side">方向</label>
@@ -128,87 +201,44 @@ export default function RealView() {
           </div>
           <div className="field">
             <label htmlFor="real-price">成交价（元）</label>
-            <input id="real-price" inputMode="decimal" autoComplete="off" spellCheck={false} value={price}
-              onChange={(e) => setPrice(e.target.value)} style={{ width: 110 }} />
+            <input id="real-price" className="field-short" inputMode="decimal" autoComplete="off" spellCheck={false} value={price}
+              onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="real-shares">股数</label>
-            <input id="real-shares" inputMode="numeric" autoComplete="off" spellCheck={false} value={shares}
-              onChange={(e) => setShares(e.target.value)} style={{ width: 100 }} />
+            <input id="real-shares" className="field-short" inputMode="numeric" autoComplete="off" spellCheck={false} value={shares}
+              onChange={(e) => setShares(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="real-fee">费用（元，可空）</label>
-            <input id="real-fee" inputMode="decimal" autoComplete="off" spellCheck={false} value={fee}
-              onChange={(e) => setFee(e.target.value)} style={{ width: 100 }} />
+            <input id="real-fee" className="field-short" inputMode="decimal" autoComplete="off" spellCheck={false} value={fee}
+              onChange={(e) => setFee(e.target.value)} />
           </div>
           <button className="btn btn-primary" disabled={loading || !valid} onClick={() => void submit()}>记一笔</button>
         </div>
-        {name && <p className="fav-empty" style={{ margin: '8px 0 0' }}>识别为：{name}</p>}
+        {name && <p className="fav-empty group-label">识别为：{name}</p>}
         {msg && <div className={`toast ${msg.kind}`} role="status">{msg.text}</div>}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>实盘持仓（自动汇总）</h2>
         {positions.length === 0 ? (
           <div className="empty">暂无持仓。在上面记一笔买入后自动汇总。</div>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr><th>代码</th><th>名称</th><th>持仓(股)</th><th>成本价</th><th>现价</th><th>市值</th><th>浮动盈亏</th><th>卖出参考</th><th>赛马建议</th></tr>
-              </thead>
-              <tbody>
-                {positions.map((p) => (
-                  <tr key={p.code}>
-                    <td>{p.code}</td>
-                    <td>{p.name || '—'}</td>
-                    <td className="num">{p.shares}</td>
-                    <td className="num">{p.avgCost.toFixed(2)}</td>
-                    <td className="num">{Number.isNaN(p.currentPrice) ? '—' : p.currentPrice.toFixed(2)}</td>
-                    <td className="num">{Number.isNaN(p.marketValue) ? '—' : Math.round(p.marketValue).toLocaleString()}</td>
-                    <td className={`num ${Number.isNaN(p.profit) ? 'muted' : pnlClass(p.profit)}`}>
-                      {Number.isNaN(p.profit) ? '行情获取失败' : `${p.profit >= 0 ? '+' : ''}${p.profit.toFixed(2)} (${p.profitPercent.toFixed(2)}%)`}
-                    </td>
-                    <td style={{ maxWidth: 330 }}>
-                      {p.sellGuide?.available ? (
-                        <div className="sell-guide">
-                          <div><b>防守 {p.sellGuide.effectiveStopPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}</b></div>
-                          <div className="muted">
-                            风控 {p.sellGuide.stopLossPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
-                            {' / '}技术 {p.sellGuide.protectionPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
-                          </div>
-                          <div>
-                            止盈 {p.sellGuide.targets[0].price.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
-                            {' / '}{p.sellGuide.targets[1].price.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
-                          </div>
-                          <div className="muted">
-                            {p.sellGuide.trendLabel} · {p.sellGuide.riskTriggered ? '已跌破防守线' : `距防守 ${p.sellGuide.distanceToStopPercent.toFixed(1)}%`}
-                          </div>
-                          <div className="muted" style={{ whiteSpace: 'pre-line' }}>{p.sellGuide.advice}</div>
-                        </div>
-                      ) : (
-                        <span className="muted">{p.sellGuide?.reason ?? '行情异常，无法计算'}</span>
-                      )}
-                    </td>
-                    <td style={{ maxWidth: 380 }}>
-                      {p.signal ? (
-                        <>
-                          <span className={KIND_TEXT[p.signal.kind]?.cls}>{KIND_TEXT[p.signal.kind]?.text ?? p.signal.kind}</span>
-                          <span style={{ display: 'block', fontSize: 12, whiteSpace: 'pre-line' }} className="muted">{p.signal.reason}</span>
-                        </>
-                      ) : (
-                        <span className="muted">数据不足，无法评估</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="position-list">
+            {positions.map((p) => (
+              <PositionItem
+                key={p.code}
+                p={p}
+                expanded={expandedCode === p.code}
+                onToggle={() => setExpandedCode((c) => (c === p.code ? null : p.code))}
+              />
+            ))}
           </div>
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>成交明细（共 {trades.length} 笔）</h2>
         {trades.length === 0 ? (
           <div className="empty">还没有记录。把券商 APP 里的成交一笔笔记进来即可。</div>

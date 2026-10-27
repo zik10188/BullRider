@@ -44,5 +44,5 @@ export default function EquityChart({ points }: { points: Array<{ date: string; 
     chartRef.current?.timeScale().fitContent()
   }, [points])
 
-  return <div ref={containerRef} className="chart-wrap" style={{ height: 260 }} aria-label="资产曲线" />
+  return <div ref={containerRef} className="chart-wrap chart-wrap-small" aria-label="资产曲线" />
 }

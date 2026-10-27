@@ -17,9 +17,9 @@ function fmtPrice(v: number, tick: number): string {
 /** 统计大数字（暗色下用文字色区分涨跌语义） */
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' }) {
   return (
-    <div>
-      <div className="muted" style={{ fontSize: 12 }}>{label}</div>
-      <div className={`num ${tone === 'up' ? 'up-text' : tone === 'down' ? 'down-text' : ''}`} style={{ fontSize: 20, fontWeight: 600 }}>{value}</div>
+    <div className="stat">
+      <div className="label">{label}</div>
+      <div className={`value num ${tone === 'up' ? 'up-text' : tone === 'down' ? 'down-text' : ''}`}>{value}</div>
     </div>
   )
 }
@@ -27,6 +27,112 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up
 /** 收益率展示：正数带 + 号并标红（A股惯例红涨） */
 function pct(v: number, digits = 1): string {
   return `${v > 0 ? '+' : ''}${v.toFixed(digits)}%`
+}
+
+type BuyHit = ScanReport['buys'][number]
+type StockPerf = TrackStats['perStock'][number]
+
+function BuyItem({
+  b, perf, expanded, guide, guideLoading, favorite, onToggleGuide, onToggleFavorite,
+}: {
+  b: BuyHit
+  perf?: StockPerf
+  expanded: boolean
+  guide: PriceGuide | null
+  guideLoading: boolean
+  favorite: boolean
+  onToggleGuide: (code: string) => void
+  onToggleFavorite: (code: string, name: string) => void
+}) {
+  return (
+    <article className={`scan-item${expanded ? ' expanded' : ''}`}>
+      <div className="scan-main">
+        <div className="scan-title">
+          <div>
+            <span className="scan-name">{b.name}</span>
+            <span className="scan-code num">{b.code} · {b.kind === 'etf' ? 'ETF' : '股票'}</span>
+          </div>
+          <span className="scan-weight num">
+            {b.buyWeight.toFixed(1)}%
+            <small>买方权重</small>
+          </span>
+        </div>
+
+        <div className="scan-facts">
+          <div><span>现价</span><b className="num">{b.price.toFixed(2)}</b></div>
+          <div><span>今日涨跌</span><b className={`num ${changeClass(b.changePercent)}`}>{b.changePercent.toFixed(2)}%</b></div>
+          <div><span>历史回合</span><b className="num">{perf ? `${perf.rounds} 回合` : '—'}</b></div>
+          <div><span>回合胜率</span><b className="num">{perf ? `${perf.winRate.toFixed(0)}%` : '—'}</b></div>
+          <div><span>平均收益</span><b className={`num ${perf ? changeClass(perf.avgReturn) : ''}`}>{perf ? pct(perf.avgReturn) : '—'}</b></div>
+        </div>
+
+        <div className="scan-actions">
+          <button
+            className="btn btn-sm"
+            aria-pressed={favorite}
+            onClick={() => onToggleFavorite(b.code, b.name)}
+          >
+            {favorite ? '★ 已收藏' : '☆ 收藏'}
+          </button>
+          <button
+            className="btn btn-sm"
+            aria-pressed={expanded}
+            title="ATR 三档挂价参考（激进/稳健/保守）"
+            onClick={() => onToggleGuide(b.code)}
+          >
+            {expanded ? '收起详情' : '查看详情'}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="scan-detail">
+          <div className="guide-panel">
+            <h3>赛马理由</h3>
+            <p>{b.reason}</p>
+            {perf && (
+              <p className="guide-note">
+                历史表现：{perf.rounds} 回合 · 胜率 {perf.winRate.toFixed(0)}% · 平均 {pct(perf.avgReturn)}
+              </p>
+            )}
+          </div>
+
+          <div className="guide-panel">
+            <h3>挂价参考</h3>
+            {guideLoading && <p className="muted">计算挂价参考中…</p>}
+            {!guideLoading && !guide && <p className="muted">暂无数据</p>}
+            {!guideLoading && guide && !guide.available && <p className="muted">{guide.reason}</p>}
+            {!guideLoading && guide && guide.available && (
+              <>
+                <p className="guide-note">
+                  基准现价 {fmtPrice(guide.price, guide.tick)}（{guide.at} 时点） · ATR(14) {fmtPrice(guide.atr, guide.tick)}（日均 ±{guide.atrPercent.toFixed(1)}%） · 近20日低点 {fmtPrice(guide.support, guide.tick)}
+                </p>
+                <div className="guide-limits">
+                  <span className="down-text">今日跌停 {guide.limitDown != null ? fmtPrice(guide.limitDown, guide.tick) : '—'}</span>
+                  <span className="up-text">今日涨停 {guide.limitUp != null ? fmtPrice(guide.limitUp, guide.tick) : '—'}</span>
+                  {guide.limitClamped && <span className="muted">已按涨跌停范围裁剪</span>}
+                </div>
+                <div className="guide-tiers">
+                  {guide.tiers.map((t) => (
+                    <div key={t.key}>
+                      <b>{t.label}</b>
+                      <span className="num">{fmtPrice(t.price, guide.tick)}</span>
+                      <small>{t.fillOdds}</small>
+                      <p>{t.note}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="guide-note">{guide.advice}</p>
+                <p className="guide-note">
+                  参考基于 {guide.at} 时点：盘中股价变动后请重新点开刷新；越临近尾盘，参考越可信。
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </article>
+  )
 }
 
 export default function ScreenerView() {
@@ -129,18 +235,18 @@ export default function ScreenerView() {
         <div className="controls-row">
           <div className="field">
             <label htmlFor="scan-min">最低价（元）</label>
-            <input id="scan-min" inputMode="decimal" autoComplete="off" spellCheck={false} value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)} style={{ width: 90 }} />
+            <input id="scan-min" className="field-short" inputMode="decimal" autoComplete="off" spellCheck={false} value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="scan-max">最高价（元）</label>
-            <input id="scan-max" inputMode="decimal" autoComplete="off" spellCheck={false} value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)} style={{ width: 90 }} />
+            <input id="scan-max" className="field-short" inputMode="decimal" autoComplete="off" spellCheck={false} value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="scan-cap">精算上限（只）</label>
-            <input id="scan-cap" inputMode="numeric" min={10} max={100} autoComplete="off" spellCheck={false} value={maxCandidates}
-              onChange={(e) => setMaxCandidates(e.target.value)} style={{ width: 90 }} />
+            <input id="scan-cap" className="field-short" inputMode="numeric" min={10} max={100} autoComplete="off" spellCheck={false} value={maxCandidates}
+              onChange={(e) => setMaxCandidates(e.target.value)} />
           </div>
           <button className="btn btn-primary" disabled={loading} onClick={() => void run()}>
             {loading ? '扫描中…（默认 100 只约 30~60 秒）' : '开始扫描'}
@@ -151,107 +257,45 @@ export default function ScreenerView() {
 
       {report && (
         <>
-          <section className="card" style={{ marginTop: 16 }}>
+          <section className="card">
             <h2>扫描结果（{new Date(report.at).toLocaleString()}）</h2>
-            <p className="sub">
-              主板 {report.totalMarket} 只 → 条件过滤后 {report.passedFilter} 只 → 精算 {report.scanned} 只 + ETF 白名单 {report.etfScanned} 只 →
-              <b> 买入信号 {report.buys.length} 只</b>
-              {report.excludedHeld.length > 0 && <>，已排除实盘持仓 {report.excludedHeld.length} 只（{report.excludedHeld.join('、')}）</>}
-            </p>
+            <div className="scan-funnel" aria-label="扫描漏斗">
+              <div><span>主板</span><b className="num">{report.totalMarket}</b></div>
+              <span className="funnel-arrow" aria-hidden="true">→</span>
+              <div><span>条件过滤</span><b className="num">{report.passedFilter}</b></div>
+              <span className="funnel-arrow" aria-hidden="true">→</span>
+              <div><span>股票精算</span><b className="num">{report.scanned}</b></div>
+              <span className="funnel-arrow" aria-hidden="true">+</span>
+              <div><span>ETF 白名单</span><b className="num">{report.etfScanned}</b></div>
+              <span className="funnel-arrow" aria-hidden="true">→</span>
+              <div className="result"><span>买入信号</span><b className="num">{report.buys.length}</b></div>
+            </div>
+            {report.excludedHeld.length > 0 && (
+              <p className="sub">已排除实盘持仓 {report.excludedHeld.length} 只：{report.excludedHeld.join('、')}</p>
+            )}
           </section>
 
           {report.buys.length > 0 ? (
-            <section className="card" style={{ marginTop: 16 }}>
+            <section className="card">
               <h2>买入信号（按买方权重排序）</h2>
-              <div className="table-wrap">
-                <table className="data">
-                  <thead>
-                    <tr>
-                      <th>代码</th><th>名称</th><th>类型</th><th>现价</th><th>今日涨跌</th><th>买方权重</th><th>历史表现</th><th>赛马理由</th><th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.buys.map((b) => {
-                      const ps = perf.get(b.code)
-                      return (
-                        <tr key={b.code}>
-                          <td>{b.code}</td>
-                          <td>{b.name}</td>
-                          <td>{b.kind === 'etf' ? <span style={{ color: 'var(--text-muted)' }}>ETF</span> : '股票'}</td>
-                          <td className="num">{b.price.toFixed(2)}</td>
-                          <td className={`num ${changeClass(b.changePercent)}`}>{b.changePercent.toFixed(2)}%</td>
-                          <td className="num up-text">{b.buyWeight.toFixed(1)}%</td>
-                          <td className="num" title="该股历史回合：样本数 · 回合胜率 · 平均收益（补历史+实时追踪累计）">
-                            {ps ? `${ps.rounds} 回合 · ${ps.winRate.toFixed(0)}% · ${pct(ps.avgReturn)}` : <span className="muted">—</span>}
-                          </td>
-                          <td style={{ maxWidth: 380, whiteSpace: 'pre-line' }}>{b.reason}</td>
-                          <td>
-                            <button
-                              className="btn btn-sm"
-                              aria-pressed={isFav(b.code)}
-                              onClick={() => setFavs(toggleFavorite(b.code, b.name))}
-                            >
-                              {isFav(b.code) ? '★ 已收藏' : '☆ 收藏'}
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              style={{ marginLeft: 6 }}
-                              aria-pressed={guideCode === b.code}
-                              title="ATR 三档挂价参考（激进/稳健/保守）"
-                              onClick={() => void toggleGuide(b.code)}
-                            >
-                              {guideCode === b.code ? '收起挂价' : '挂价参考'}
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="scan-list">
+                {report.buys.map((b) => (
+                  <BuyItem
+                    key={b.code}
+                    b={b}
+                    perf={perf.get(b.code)}
+                    expanded={guideCode === b.code}
+                    guide={guideCode === b.code ? guide : null}
+                    guideLoading={guideCode === b.code && guideLoading}
+                    favorite={isFav(b.code)}
+                    onToggleGuide={(code) => void toggleGuide(code)}
+                    onToggleFavorite={(code, name) => setFavs(toggleFavorite(code, name))}
+                  />
+                ))}
               </div>
-              {guideCode && (
-                <div style={{ marginTop: 12 }}>
-                  {guideLoading && <span className="muted">计算挂价参考中…</span>}
-                  {!guideLoading && guide && !guide.available && <span className="muted">{guide.reason}</span>}
-                  {!guideLoading && guide && guide.available && (
-                    <>
-                      <div style={{ marginBottom: 8 }}>
-                        <b>挂价参考 · {guideCode}</b>
-                        <span className="muted" style={{ marginLeft: 10, fontSize: 12 }}>
-                          基准现价 {fmtPrice(guide.price, guide.tick)}（{guide.at} 时点）· ATR(14) = {fmtPrice(guide.atr, guide.tick)} 元（日均 ±{guide.atrPercent.toFixed(1)}%）· 近20日低点 {fmtPrice(guide.support, guide.tick)}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 8, fontSize: 12 }}>
-                        <span className="down-text">今日跌停 {guide.limitDown != null ? fmtPrice(guide.limitDown, guide.tick) : '—'}</span>
-                        <span className="up-text">今日涨停 {guide.limitUp != null ? fmtPrice(guide.limitUp, guide.tick) : '—'}</span>
-                        {guide.limitClamped && <span className="muted">本次参考已按涨跌停范围裁剪</span>}
-                      </div>
-                      <table className="data">
-                        <thead>
-                          <tr><th>档位</th><th>建议挂价</th><th>成交预期</th><th>逻辑</th></tr>
-                        </thead>
-                        <tbody>
-                          {guide.tiers.map((t) => (
-                            <tr key={t.key}>
-                              <td>{t.label}</td>
-                              <td className="num" style={{ fontWeight: 600 }}>{fmtPrice(t.price, guide.tick)}</td>
-                              <td className="muted">{t.fillOdds}</td>
-                              <td className="muted">{t.note}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>{guide.advice}</p>
-                      <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
-                        参考基于 {guide.at} 时点的现价计算：盘中股价变动后请重新点开"挂价参考"刷新，别拿早上的数字挂到尾盘；越临近尾盘，参考越可信。
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
             </section>
           ) : (
-            <section className="card" style={{ marginTop: 16 }}>
+            <section className="card">
               <div className="empty">本次扫描无买入信号。信号稀疏是策略的保守特性——没把握就不动手，别硬凑。</div>
             </section>
           )}
@@ -259,7 +303,7 @@ export default function ScreenerView() {
       )}
 
       {track && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card">
           <h2>信号质量追踪</h2>
           <p className="sub">
             给策略每次喊买记账，等它喊卖（或超 60 个交易日）按收盘价验收。「回合」= 一段连续买入 + 最终卖出，与回测同口径；
@@ -271,7 +315,7 @@ export default function ScreenerView() {
             <div className="empty">还没有追踪样本：扫描出买入信号后会自动补历史并开始记账。</div>
           ) : (
             <>
-              <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', margin: '12px 0' }}>
+              <div className="track-grid">
                 <Stat label="回合样本" value={String(track.roundLayer.settled)} />
                 <Stat label="回合胜率" value={`${track.roundLayer.winRate.toFixed(0)}%`} />
                 <Stat label="平均收益" value={pct(track.roundLayer.avgReturn)} tone={track.roundLayer.avgReturn > 0 ? 'up' : 'down'} />
@@ -282,12 +326,12 @@ export default function ScreenerView() {
                 <Stat label="在途回合" value={String(track.roundLayer.pending)} />
                 <Stat label="除权修正" value={`${track.adjustedEntries} 条`} />
               </div>
-              <p className="sub" style={{ marginTop: 0 }}>
+              <p className="sub track-layer">
                 信号层：{track.signalLayer.settled} 条已结算 · 胜率 {track.signalLayer.winRate.toFixed(0)}% · 平均 {pct(track.signalLayer.avgReturn)}
                 （同一回合的重复喊买逐条计入）
               </p>
               {track.perStock.length > 0 && (
-                <div className="table-wrap" style={{ marginTop: 12 }}>
+                <div className="table-wrap track-table">
                   <table className="data">
                     <thead>
                       <tr><th>按股样本</th><th>回合</th><th>回合胜率</th><th>平均收益</th><th>在途</th><th>操作</th></tr>

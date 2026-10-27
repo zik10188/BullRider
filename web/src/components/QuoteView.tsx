@@ -117,7 +117,7 @@ export default function QuoteView() {
             <span className="code">{quote.name} · {symbol}</span>
             <div className="price num">
               {quote.price.toFixed(2)}
-              <span className={`change-badge ${changeClass(quote.changePercent)}`} style={{ marginLeft: 14, verticalAlign: 'middle' }}>
+              <span className={`change-badge ${changeClass(quote.changePercent)}`}>
                 {quote.changePercent >= 0 ? '▲' : '▼'} {Math.abs(quote.changePercent).toFixed(2)}%
               </span>
             </div>
@@ -138,13 +138,13 @@ export default function QuoteView() {
         </section>
       )}
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>日 K 线 · 近 {klines.length} 日</h2>
         <KlineChart klines={klines} />
       </section>
 
       {klines.length > 0 && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card">
           <h2>近期明细</h2>
           <div className="table-wrap">
             <table className="data">

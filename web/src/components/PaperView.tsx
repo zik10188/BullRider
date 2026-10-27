@@ -86,7 +86,7 @@ export default function PaperView() {
         <div className="controls-row">
           <div className="field">
             <label htmlFor="init-capital">初始资金（元）</label>
-            <input id="init-capital" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={initCapital} onChange={(e) => setInitCapital(Number(e.target.value) || 0)} style={{ width: 160 }} />
+            <input id="init-capital" className="field-medium" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={initCapital} onChange={(e) => setInitCapital(Number(e.target.value) || 0)} />
           </div>
           <button className="btn btn-primary" disabled={loading} onClick={() => act(() => paperInit(initCapital, false))}>
             创建模拟账户
@@ -112,13 +112,13 @@ export default function PaperView() {
             </div>
           </div>
         </div>
-        <div className="controls-row" style={{ marginTop: 12 }}>
+        <div className="controls-row controls-tight">
           <div className="field">
             <label htmlFor="deposit-amount">追加资金（元）</label>
-            <input id="deposit-amount" name="deposit" inputMode="numeric" autoComplete="off" spellCheck={false} value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} style={{ width: 130 }} />
+            <input id="deposit-amount" className="field-short" name="deposit" inputMode="numeric" autoComplete="off" spellCheck={false} value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
           </div>
           <button className="btn" disabled={loading} onClick={() => act(() => paperDeposit(Number(depositAmount) || 0))}>充值</button>
-          <span style={{ flex: 1 }} />
+          <span className="controls-spacer" />
           <button
             className="btn btn-danger"
             disabled={loading}
@@ -129,11 +129,11 @@ export default function PaperView() {
           </button>
         </div>
         {resetOpen && (
-          <div className="controls-row" style={{ marginTop: 10 }}>
+          <div className="controls-row controls-tight">
             <div className="field">
               <label htmlFor="reset-capital">重置后的初始资金（元）</label>
               <input id="reset-capital" inputMode="numeric" autoComplete="off" spellCheck={false}
-                value={resetCapital} onChange={(e) => setResetCapital(e.target.value)} style={{ width: 160 }} />
+                value={resetCapital} onChange={(e) => setResetCapital(e.target.value)} />
             </div>
             <button className="btn btn-danger" disabled={loading} onClick={doReset}>
               确认重置（清空持仓/流水/曲线）
@@ -143,30 +143,30 @@ export default function PaperView() {
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>手动买入</h2>
         <p className="sub">指定金额买入（不够一手的零头自动忽略），现金不会被一次性掏空——这就是仓位管理。</p>
         <div className="controls-row">
           <div className="field">
             <label htmlFor="buy-symbol">股票代码</label>
-            <input id="buy-symbol" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={buySymbol} onChange={(e) => setBuySymbol(e.target.value)} style={{ width: 130 }} />
+            <input id="buy-symbol" className="field-short" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={buySymbol} onChange={(e) => setBuySymbol(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="buy-amount">买入金额（元，留空 = 全仓）</label>
-            <input id="buy-amount" name="amount" inputMode="numeric" autoComplete="off" spellCheck={false} value={buyAmount} onChange={(e) => setBuyAmount(e.target.value)} style={{ width: 170 }} />
+            <input id="buy-amount" className="field-medium" name="amount" inputMode="numeric" autoComplete="off" spellCheck={false} value={buyAmount} onChange={(e) => setBuyAmount(e.target.value)} />
           </div>
           <button className="btn btn-success" disabled={loading} onClick={() => act(() => paperBuy(buySymbol.trim(), Number(buyAmount) || undefined))}>
             买入
           </button>
         </div>
-        {history.length > 0 && <p className="fav-empty" style={{ margin: '10px 0 0' }}>最近查询：</p>}
+        {history.length > 0 && <p className="fav-empty group-label">最近查询：</p>}
         <FavChips
           favs={history}
           current={buySymbol}
           onSelect={changeSymbol}
           onRemove={(code) => setHistory(removeQueryHistory(code))}
         />
-        {favs.length > 0 && <p className="fav-empty" style={{ margin: '10px 0 0' }}>收藏：</p>}
+        {favs.length > 0 && <p className="fav-empty group-label">收藏：</p>}
         <FavChips
           favs={favs}
           current={buySymbol}
@@ -175,7 +175,7 @@ export default function PaperView() {
         />
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>持仓</h2>
         {snap.positions.length === 0 ? (
           <div className="empty">空仓。用下面的"按信号自动操作"或手动买入。</div>
@@ -211,13 +211,13 @@ export default function PaperView() {
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card">
         <h2>按信号自动操作</h2>
         <p className="sub">读取当前策略信号：买入则按风控预算买入、卖出则清仓、持有则检查止损。</p>
         <div className="controls-row">
           <div className="field">
             <label htmlFor="apply-symbol">股票代码</label>
-            <input id="apply-symbol" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={applySymbol} onChange={(e) => setApplySymbol(e.target.value)} style={{ width: 130 }} />
+            <input id="apply-symbol" className="field-short" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={applySymbol} onChange={(e) => setApplySymbol(e.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="apply-strategy">策略</label>
@@ -234,7 +234,7 @@ export default function PaperView() {
       </section>
 
       {snap.equityHistory.length >= 2 && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card">
           <h2>资产曲线</h2>
           <p className="sub">每次买卖操作后的总资产快照（{snap.equityHistory.length} 个记录点）</p>
           <EquityChart points={snap.equityHistory} />
@@ -242,7 +242,7 @@ export default function PaperView() {
       )}
 
       {snap.trades.length > 0 && (
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card">
           <h2>最近交易（共 {snap.trades.length} 笔）</h2>
           <div className="table-wrap">
             <table className="data">

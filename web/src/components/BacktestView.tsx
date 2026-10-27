@@ -80,7 +80,7 @@ export default function BacktestView() {
           ))}
         </select>
         <label className="sr-only" htmlFor="bt-capital">初始资金</label>
-        <input id="bt-capital" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={capital} onChange={(e) => setCapital(Number(e.target.value) || 0)} style={{ width: 110 }} placeholder="如 200000…" />
+        <input id="bt-capital" className="field-short" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={capital} onChange={(e) => setCapital(Number(e.target.value) || 0)} placeholder="如 200000…" />
         <button className="btn btn-primary" type="submit" disabled={loading}>回测</button>
       </form>
 
@@ -96,10 +96,17 @@ export default function BacktestView() {
 
       {result && (
         <>
-          <section className="card" style={{ marginTop: 16 }}>
+          <section className="card">
             <h2>{result.name} ({result.symbol}) · {result.strategy}</h2>
             <p className="sub">{result.periodStart} ~ {result.periodEnd}（共 {result.barCount} 根日K）· 初始资金 ¥{result.initialCapital.toLocaleString()} · 信号次日开盘成交</p>
             <div className="metric-grid">
+              <div className={`metric verdict ${result.excessReturnPercent >= 0 ? 'positive' : 'negative'}`}>
+                <div className="label">相对买入持有</div>
+                <div className={`value num ${retClass(result.excessReturnPercent)}`}>
+                  {result.excessReturnPercent >= 0 ? '+' : ''}{result.excessReturnPercent.toFixed(2)}%
+                </div>
+                <p>{result.excessReturnPercent >= 0 ? '策略跑赢买入持有' : '策略跑输买入持有'}</p>
+              </div>
               {metrics.map((m) => (
                 <div className="metric" key={m.label}>
                   <div className="label">{m.label}</div>
@@ -107,15 +114,10 @@ export default function BacktestView() {
                 </div>
               ))}
             </div>
-            <div className={`toast ${result.excessReturnPercent >= 0 ? 'ok' : 'err'}`}>
-              {result.excessReturnPercent >= 0
-                ? `策略跑赢买入持有 ${result.excessReturnPercent.toFixed(2)} 个百分点`
-                : `策略跑输买入持有 ${Math.abs(result.excessReturnPercent).toFixed(2)} 个百分点`}
-            </div>
           </section>
 
           {result.trades.length > 0 && (
-            <section className="card" style={{ marginTop: 16 }}>
+            <section className="card">
               <h2>交易明细（{result.trades.length} 笔）</h2>
               <div className="table-wrap">
                 <table className="data">
@@ -139,7 +141,7 @@ export default function BacktestView() {
             </section>
           )}
 
-          <p className="muted" style={{ marginTop: 12, fontSize: 12.5 }}>
+          <p className="backtest-note">
             仅供参考，历史不代表未来，不构成投资建议。
           </p>
         </>
