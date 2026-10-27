@@ -4,6 +4,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchScan, scanNow, ongoingScan, fetchTrackStats, deleteTrackStock, fetchPriceGuide, type PriceGuide, type ScanReport, type TrackStats } from '../api'
 import { loadFavorites, toggleFavorite, subscribeFavorites, type FavStock } from '../lib/favorites'
+import GuidePanel from './common/GuidePanel'
+import { Metric } from './common/Metric'
+import ScanFunnel from './common/ScanFunnel'
 
 function changeClass(v: number): string {
   return v > 0 ? 'up-text' : v < 0 ? 'down-text' : 'muted'
@@ -12,16 +15,6 @@ function changeClass(v: number): string {
 /** 价格按最小变动单位显示：股票 2 位小数、ETF 3 位 */
 function fmtPrice(v: number, tick: number): string {
   return v.toFixed(tick === 0.001 ? 3 : 2)
-}
-
-/** 统计大数字（暗色下用文字色区分涨跌语义） */
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up' | 'down' }) {
-  return (
-    <div className="stat">
-      <div className="label">{label}</div>
-      <div className={`value num ${tone === 'up' ? 'up-text' : tone === 'down' ? 'down-text' : ''}`}>{value}</div>
-    </div>
-  )
 }
 
 /** 收益率展示：正数带 + 号并标红（A股惯例红涨） */
@@ -87,18 +80,16 @@ function BuyItem({
 
       {expanded && (
         <div className="scan-detail">
-          <div className="guide-panel">
-            <h3>赛马理由</h3>
+          <GuidePanel title="赛马理由">
             <p>{b.reason}</p>
             {perf && (
               <p className="guide-note">
                 历史表现：{perf.rounds} 回合 · 胜率 {perf.winRate.toFixed(0)}% · 平均 {pct(perf.avgReturn)}
               </p>
             )}
-          </div>
+          </GuidePanel>
 
-          <div className="guide-panel">
-            <h3>挂价参考</h3>
+          <GuidePanel title="挂价参考">
             {guideLoading && <p className="muted">计算挂价参考中…</p>}
             {!guideLoading && !guide && <p className="muted">暂无数据</p>}
             {!guideLoading && guide && !guide.available && <p className="muted">{guide.reason}</p>}
@@ -128,7 +119,7 @@ function BuyItem({
                 </p>
               </>
             )}
-          </div>
+          </GuidePanel>
         </div>
       )}
     </article>
@@ -259,17 +250,13 @@ export default function ScreenerView() {
         <>
           <section className="card">
             <h2>扫描结果（{new Date(report.at).toLocaleString()}）</h2>
-            <div className="scan-funnel" aria-label="扫描漏斗">
-              <div><span>主板</span><b className="num">{report.totalMarket}</b></div>
-              <span className="funnel-arrow" aria-hidden="true">→</span>
-              <div><span>条件过滤</span><b className="num">{report.passedFilter}</b></div>
-              <span className="funnel-arrow" aria-hidden="true">→</span>
-              <div><span>股票精算</span><b className="num">{report.scanned}</b></div>
-              <span className="funnel-arrow" aria-hidden="true">+</span>
-              <div><span>ETF 白名单</span><b className="num">{report.etfScanned}</b></div>
-              <span className="funnel-arrow" aria-hidden="true">→</span>
-              <div className="result"><span>买入信号</span><b className="num">{report.buys.length}</b></div>
-            </div>
+            <ScanFunnel
+              market={report.totalMarket}
+              filtered={report.passedFilter}
+              scanned={report.scanned}
+              etfScanned={report.etfScanned}
+              buys={report.buys.length}
+            />
             {report.excludedHeld.length > 0 && (
               <p className="sub">已排除实盘持仓 {report.excludedHeld.length} 只：{report.excludedHeld.join('、')}</p>
             )}
@@ -315,16 +302,16 @@ export default function ScreenerView() {
             <div className="empty">还没有追踪样本：扫描出买入信号后会自动补历史并开始记账。</div>
           ) : (
             <>
-              <div className="track-grid">
-                <Stat label="回合样本" value={String(track.roundLayer.settled)} />
-                <Stat label="回合胜率" value={`${track.roundLayer.winRate.toFixed(0)}%`} />
-                <Stat label="平均收益" value={pct(track.roundLayer.avgReturn)} tone={track.roundLayer.avgReturn > 0 ? 'up' : 'down'} />
-                <Stat label="平均赚 / 亏" value={`${pct(track.roundLayer.avgWin)} / ${pct(track.roundLayer.avgLoss)}`} />
-                <Stat label="盈亏比" value={track.roundLayer.profitFactor > 0 ? track.roundLayer.profitFactor.toFixed(2) : '—'} />
-                <Stat label="平均持仓" value={track.roundLayer.avgDays > 0 ? `${track.roundLayer.avgDays.toFixed(0)} 天` : '—'} />
-                <Stat label="最大连亏" value={`${track.roundLayer.maxConsecutiveLosses} 次`} />
-                <Stat label="在途回合" value={String(track.roundLayer.pending)} />
-                <Stat label="除权修正" value={`${track.adjustedEntries} 条`} />
+              <div className="metric-grid track-grid">
+                <Metric label="回合样本" value={String(track.roundLayer.settled)} />
+                <Metric label="回合胜率" value={`${track.roundLayer.winRate.toFixed(0)}%`} />
+                <Metric label="平均收益" value={pct(track.roundLayer.avgReturn)} cls={changeClass(track.roundLayer.avgReturn)} />
+                <Metric label="平均赚 / 亏" value={`${pct(track.roundLayer.avgWin)} / ${pct(track.roundLayer.avgLoss)}`} />
+                <Metric label="盈亏比" value={track.roundLayer.profitFactor > 0 ? track.roundLayer.profitFactor.toFixed(2) : '—'} />
+                <Metric label="平均持仓" value={track.roundLayer.avgDays > 0 ? `${track.roundLayer.avgDays.toFixed(0)} 天` : '—'} />
+                <Metric label="最大连亏" value={`${track.roundLayer.maxConsecutiveLosses} 次`} />
+                <Metric label="在途回合" value={String(track.roundLayer.pending)} />
+                <Metric label="除权修正" value={`${track.adjustedEntries} 条`} />
               </div>
               <p className="sub track-layer">
                 信号层：{track.signalLayer.settled} 条已结算 · 胜率 {track.signalLayer.winRate.toFixed(0)}% · 平均 {pct(track.signalLayer.avgReturn)}

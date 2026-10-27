@@ -4,6 +4,7 @@ import { loadFavorites, removeFavorite, subscribeFavorites, type FavStock } from
 import { recordQuery } from '../lib/query-history'
 import { loadLastSymbol, setLastSymbol, subscribeLastSymbol } from '../lib/last-symbol'
 import FavChips from './FavChips'
+import { Metric, MetricGrid } from './common/Metric'
 
 function retClass(v: number): string {
   return v > 0 ? 'up-text' : v < 0 ? 'down-text' : 'muted'
@@ -99,21 +100,18 @@ export default function BacktestView() {
           <section className="card">
             <h2>{result.name} ({result.symbol}) · {result.strategy}</h2>
             <p className="sub">{result.periodStart} ~ {result.periodEnd}（共 {result.barCount} 根日K）· 初始资金 ¥{result.initialCapital.toLocaleString()} · 信号次日开盘成交</p>
-            <div className="metric-grid">
-              <div className={`metric verdict ${result.excessReturnPercent >= 0 ? 'positive' : 'negative'}`}>
-                <div className="label">相对买入持有</div>
-                <div className={`value num ${retClass(result.excessReturnPercent)}`}>
-                  {result.excessReturnPercent >= 0 ? '+' : ''}{result.excessReturnPercent.toFixed(2)}%
-                </div>
-                <p>{result.excessReturnPercent >= 0 ? '策略跑赢买入持有' : '策略跑输买入持有'}</p>
-              </div>
+            <MetricGrid>
+              <Metric
+                label="相对买入持有"
+                value={`${result.excessReturnPercent >= 0 ? '+' : ''}${result.excessReturnPercent.toFixed(2)}%`}
+                cls={retClass(result.excessReturnPercent)}
+                note={result.excessReturnPercent >= 0 ? '策略跑赢买入持有' : '策略跑输买入持有'}
+                variant={result.excessReturnPercent >= 0 ? 'positive' : 'negative'}
+              />
               {metrics.map((m) => (
-                <div className="metric" key={m.label}>
-                  <div className="label">{m.label}</div>
-                  <div className={`value num ${m.cls}`}>{m.value}</div>
-                </div>
+                <Metric key={m.label} label={m.label} value={m.value} cls={m.cls} />
               ))}
-            </div>
+            </MetricGrid>
           </section>
 
           {result.trades.length > 0 && (

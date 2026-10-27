@@ -2,6 +2,7 @@
 // AI 教练的系统提示词会注入这些数据，保证它的认知跟你的真实操作对齐。
 import { useCallback, useEffect, useState } from 'react'
 import { addRealTrade, deleteRealTrade, fetchQuote, fetchReal, type RealJournal, type RealTrade } from '../api'
+import GuidePanel from './common/GuidePanel'
 
 interface Toast { kind: 'ok' | 'err'; text: string }
 
@@ -64,8 +65,7 @@ function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolea
 
       {expanded && (
         <div className="position-detail">
-          <div className="guide-panel">
-            <h3>卖出参考</h3>
+          <GuidePanel title="卖出参考">
             {p.sellGuide?.available ? (
               <>
                 <div className="guide-lines">
@@ -78,16 +78,15 @@ function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolea
                 <p>{p.sellGuide.advice}</p>
               </>
             ) : <p className="muted">{p.sellGuide?.reason ?? '行情异常，无法计算'}</p>}
-          </div>
-          <div className="guide-panel">
-            <h3>赛马建议</h3>
+          </GuidePanel>
+          <GuidePanel title="赛马建议">
             {p.signal ? (
               <>
                 <div className={`signal-chip ${KIND_TEXT[p.signal.kind]?.cls ?? ''}`}>{KIND_TEXT[p.signal.kind]?.text ?? p.signal.kind}</div>
                 <p>{p.signal.reason}</p>
               </>
             ) : <p className="muted">数据不足，无法评估</p>}
-          </div>
+          </GuidePanel>
         </div>
       )}
     </article>

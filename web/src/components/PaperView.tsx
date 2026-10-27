@@ -14,6 +14,7 @@ import { loadFavorites, removeFavorite, subscribeFavorites, type FavStock } from
 import { loadQueryHistory, removeQueryHistory, subscribeQueryHistory, type QueryItem } from '../lib/query-history'
 import EquityChart from './EquityChart'
 import FavChips from './FavChips'
+import { Metric } from './common/Metric'
 
 interface Toast { kind: 'ok' | 'err' | 'info'; text: string }
 
@@ -102,15 +103,14 @@ export default function PaperView() {
       <section className="card">
         <h2>模拟账户</h2>
         <p className="sub">真行情 · 假资金 · 下单自动过风控</p>
-        <div className="account-grid">
-          <div className="stat"><div className="label">当前现金</div><div className="value num">¥{Math.round(snap.cash).toLocaleString()}</div></div>
-          <div className="stat"><div className="label">总资产（含持仓）</div><div className="value num">¥{Math.round(snap.equity).toLocaleString()}</div></div>
-          <div className="stat">
-            <div className="label">总盈亏</div>
-            <div className={`value num ${pnlClass(snap.totalProfit)}`}>
-              {snap.totalProfit >= 0 ? '+' : ''}{snap.totalProfit.toFixed(2)} ({snap.totalProfitPercent.toFixed(2)}%)
-            </div>
-          </div>
+        <div className="metric-grid account-grid">
+          <Metric label="当前现金" value={`¥${Math.round(snap.cash).toLocaleString()}`} />
+          <Metric label="总资产（含持仓）" value={`¥${Math.round(snap.equity).toLocaleString()}`} />
+          <Metric
+            label="总盈亏"
+            value={`${snap.totalProfit >= 0 ? '+' : ''}${snap.totalProfit.toFixed(2)} (${snap.totalProfitPercent.toFixed(2)}%)`}
+            cls={pnlClass(snap.totalProfit)}
+          />
         </div>
         <div className="controls-row controls-tight">
           <div className="field">
