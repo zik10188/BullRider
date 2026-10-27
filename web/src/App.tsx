@@ -49,7 +49,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1 className="sr-only">BullRider 股票教练</h1>
+      <h1 className="sr-only">BullRider 量化信号与风险管理工具</h1>
       <header className="topbar">
         <a className="brand" href="#/quote" aria-label="BullRider 首页">
           <span className="brand-mark" aria-hidden="true">
@@ -62,7 +62,7 @@ export default function App() {
           </span>
           <span className="brand-name" translate="no">
             BULLRIDER
-            <small>股票教练</small>
+            <small>量化信号与风控</small>
           </span>
         </a>
         <nav className="nav" aria-label="主导航">

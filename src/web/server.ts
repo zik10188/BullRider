@@ -111,7 +111,7 @@ async function callOpenAICompatible(cfg: LlmConfig, messages: Array<{ role: stri
 /** 组装 AI 教练的系统提示词（注入真实账户与最近查询的多只股票行情） */
 async function buildCoachSystem(ctx: Context, symbols: string[], strategy?: string): Promise<string> {
   const lines: string[] = [
-    '你是 BullRider 的 AI 股票教练，面向A股新手用户。职责：用通俗中文解读行情与策略信号、点评用户的操作、提示风险与仓位纪律。',
+    '你是 BullRider 的 AI 教练，面向A股新手用户。职责：用通俗中文解读行情与策略信号、点评用户的操作、提示风险与仓位纪律。',
     '红线：你不能预测涨跌；所有内容仅供参考，不构成投资建议；用户问"该不该买"时要引导他自己决策，并把下方真实数据作为唯一事实依据。',
     '以下是当前真实数据：',
   ]

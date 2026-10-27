@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "BullRider —— 面向国内 A股交易、一切皆插件的新手 Agent（教学演示工程）",
+  "description": "BullRider —— 面向国内 A 股的量化信号与风险管理工具（教学演示工程）",
   "license": "MIT",
   "author": "zik10188",
   "repository": {

@@ -137,7 +137,7 @@ export default function ChatView() {
     const old = msgs.slice(0, cut)
     setError('对话太长，正在压缩历史…')
     const r = await chatSend(
-      [{ role: 'user', content: '请把下面这段股票教练对话压缩成要点摘要（保留股票代码、数字和结论），直接输出摘要，不要客套：\n\n' + old.map((m) => `${m.role === 'user' ? '用户' : '教练'}：${m.content}`).join('\n') }],
+      [{ role: 'user', content: '请把下面这段 AI 教练对话压缩成要点摘要（保留股票代码、数字和结论），直接输出摘要，不要客套：\n\n' + old.map((m) => `${m.role === 'user' ? '用户' : '教练'}：${m.content}`).join('\n') }],
       settings,
     )
     setError('')
