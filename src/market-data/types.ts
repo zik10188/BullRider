@@ -38,6 +38,10 @@ export interface Quote {
   low: number
   /** 昨收 */
   prevClose: number
+  /** 当日涨停价（交易所/数据源口径） */
+  limitUp: number
+  /** 当日跌停价（交易所/数据源口径） */
+  limitDown: number
   /** 涨跌幅（百分比，如 2.5 表示 +2.5%） */
   changePercent: number
 }

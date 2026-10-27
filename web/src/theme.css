@@ -394,6 +394,15 @@ table.data tr:last-child td { border-bottom: none; }
 
 .pos-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
+.sell-guide {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
 .toast {
   margin-top: 12px;
   padding: 11px 14px;

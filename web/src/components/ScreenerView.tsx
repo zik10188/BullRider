@@ -221,6 +221,11 @@ export default function ScreenerView() {
                           基准现价 {fmtPrice(guide.price, guide.tick)}（{guide.at} 时点）· ATR(14) = {fmtPrice(guide.atr, guide.tick)} 元（日均 ±{guide.atrPercent.toFixed(1)}%）· 近20日低点 {fmtPrice(guide.support, guide.tick)}
                         </span>
                       </div>
+                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 8, fontSize: 12 }}>
+                        <span className="down-text">今日跌停 {guide.limitDown != null ? fmtPrice(guide.limitDown, guide.tick) : '—'}</span>
+                        <span className="up-text">今日涨停 {guide.limitUp != null ? fmtPrice(guide.limitUp, guide.tick) : '—'}</span>
+                        {guide.limitClamped && <span className="muted">本次参考已按涨跌停范围裁剪</span>}
+                      </div>
                       <table className="data">
                         <thead>
                           <tr><th>档位</th><th>建议挂价</th><th>成交预期</th><th>逻辑</th></tr>

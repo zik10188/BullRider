@@ -22,6 +22,7 @@ function deps(over: Partial<ValueDeps> = {}): ValueDeps {
     quote: async () => ({ name: '超声电子', price: 25.46 }),
     daily: async () => kl120,
     evaluate: () => sig('BUY'),
+    stopLossRatio: 0.1,
     ...over,
   }
 }
@@ -42,10 +43,23 @@ test('赛马建议：evaluate 结果注入 signal（含理由）', async () => {
   assert.equal(rows[0].signal?.reason, '测试理由')
 })
 
+test('卖出参考：复用估值日K生成防守价、两档止盈和趋势状态', async () => {
+  const rows = await valuePositions(deps({ evaluate: () => sig('SELL') }), [trade({})])
+  const guide = rows[0].sellGuide
+  assert.ok(guide?.available)
+  if (!guide?.available) return
+  assert.equal(guide.trend, 'SELL')
+  assert.ok(guide.effectiveStopPrice < guide.price)
+  assert.ok(guide.targets[0].price > guide.price)
+  assert.ok(guide.targets[1].price > guide.targets[0].price)
+  assert.ok(guide.stopLossPrice > 0)
+})
+
 test('日K不足：估值照常给出，signal 为空不炸', async () => {
   const rows = await valuePositions(deps({ daily: async () => { throw new Error('数据不足') } }), [trade({})])
   assert.ok(closeTo(rows[0].currentPrice, 25.46))
   assert.equal(rows[0].signal, undefined)
+  assert.equal(rows[0].sellGuide, undefined)
 })
 
 test('单只行情挂掉：该行 NaN 兜底，其余持仓不受影响', async () => {

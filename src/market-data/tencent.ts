@@ -45,6 +45,7 @@ export function parseDailyJson(text: string, symbol: string): KLine[] {
 /**
  * 解析腾讯实时行情文本（GBK 已解码后）。格式：v_sz002181="字段0~名称~代码~现价~昨收~今开~...~涨跌幅~最高~最低~..."，
  * 字段用 ~ 分隔：[1]名称 [2]代码 [3]现价 [4]昨收 [5]今开 [32]涨跌幅% [33]最高 [34]最低
+ * 腾讯同时给出 [47]涨停价 [48]跌停价。
  */
 export function parseQuoteBody(text: string, symbol: string): Quote {
   const m = /=\s*"([^"]*)"/.exec(text)
@@ -59,6 +60,8 @@ export function parseQuoteBody(text: string, symbol: string): Quote {
     high: num(33),
     low: num(34),
     prevClose: num(4),
+    limitUp: num(47),
+    limitDown: num(48),
     changePercent: num(32),
   }
 }

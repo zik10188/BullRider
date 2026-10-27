@@ -42,6 +42,28 @@ test('ETF 最小变动单位 0.001：激进档对齐千分位', () => {
   assert.equal(g.tiers[0].price, 4.208)
 })
 
+test('涨跌停：激进档不能超过今日涨停价，并明确标注', () => {
+  const g = computePriceGuide('000823', 10.99, steadyBars(), 11, 9)
+  assert.ok(g.available)
+  if (!g.available) return
+  assert.equal(g.limitUp, 11)
+  assert.equal(g.limitDown, 9)
+  assert.equal(g.tiers[0].price, 11)
+  assert.equal(g.limitClamped, true)
+  assert.match(g.tiers[0].note, /涨停价/)
+})
+
+test('涨跌停：稳健和保守档不能低于今日跌停价，并允许在跌停位重合', () => {
+  const g = computePriceGuide('000823', 9.2, steadyBars(), 11, 9)
+  assert.ok(g.available)
+  if (!g.available) return
+  assert.equal(g.tiers[1].price, 9)
+  assert.equal(g.tiers[2].price, 9)
+  assert.equal(g.limitClamped, true)
+  assert.match(g.tiers[1].note, /跌停价/)
+  assert.match(g.tiers[2].note, /跌停价/)
+})
+
 test('日K不足 15 根：available=false 且给人话原因', () => {
   const g = computePriceGuide('000823', 10, steadyBars(14))
   assert.equal(g.available, false)

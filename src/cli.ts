@@ -314,6 +314,7 @@ async function realAndShow(ctx: Context) {
     quote: (code) => ctx.marketData.quote(code),
     daily: (code, days) => ctx.marketData.daily(code, { days }),
     evaluate: (klines, strategy) => ctx.signal.evaluate(klines, strategy),
+    stopLossRatio: ctx.risk.config.stopLossRatio,
   }, trades)
 
   console.log('')
@@ -338,6 +339,20 @@ async function realAndShow(ctx: Context) {
       }),
       ['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r'],
     )
+    console.log('')
+    console.log('  ── 卖出参考 ──')
+    for (const p of valued) {
+      const g = p.sellGuide
+      if (!g?.available) {
+        console.log(`  ${p.code} ${p.name ?? ''} → --（${g?.reason ?? '行情异常，无法计算'}）`)
+        continue
+      }
+      const fmt = (v: number) => v.toFixed(g.tick === 0.001 ? 3 : 2)
+      const risk = g.riskTriggered ? '已跌破防守线' : `距防守 ${g.distanceToStopPercent.toFixed(1)}%`
+      console.log(`  ${p.code} ${p.name ?? ''} → 防守 ${fmt(g.effectiveStopPrice)}（风控 ${fmt(g.stopLossPrice)} / 技术 ${fmt(g.protectionPrice)}）`)
+      console.log(`      止盈 ${fmt(g.targets[0].price)} / ${fmt(g.targets[1].price)} · ${g.trendLabel} · ${risk}`)
+      console.log(`      ${g.advice}`)
+    }
     console.log('')
     console.log('  ── 赛马建议 ──')
     for (const p of valued) {

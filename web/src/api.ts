@@ -120,6 +120,9 @@ export type PriceGuide =
       atrPercent: number
       tick: number
       support: number
+      limitUp?: number
+      limitDown?: number
+      limitClamped: boolean
       tiers: PriceTier[]
       advice: string
     }
@@ -208,7 +211,32 @@ export interface RealPosition {
   profitPercent: number
   /** 该持仓股的策略赛马建议（拉不到数据时无此字段） */
   signal?: { kind: 'BUY' | 'SELL' | 'HOLD'; reason: string }
+  /** 卖出参考（日K不足或行情异常时无此字段/不可用） */
+  sellGuide?: RealSellGuide
 }
+
+export type RealSellGuide =
+  | {
+      available: true
+      price: number
+      at: string
+      tick: number
+      atr: number
+      atrPercent: number
+      costPrice: number
+      support: number
+      resistance: number
+      stopLossPrice: number
+      protectionPrice: number
+      effectiveStopPrice: number
+      distanceToStopPercent: number
+      targets: Array<{ key: 'target-1' | 'target-2'; label: string; price: number; note: string }>
+      trend: 'BUY' | 'SELL' | 'HOLD' | null
+      trendLabel: string
+      riskTriggered: boolean
+      advice: string
+    }
+  | { available: false; reason: string }
 
 export interface RealJournal {
   trades: RealTrade[]

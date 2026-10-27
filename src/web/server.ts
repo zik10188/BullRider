@@ -217,7 +217,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
     try {
       const q = await ctx.marketData.quote(code)
       const klines = await ctx.marketData.daily(code, { days: 60 })
-      json(res, 200, computePriceGuide(code, q.price, klines))
+      json(res, 200, computePriceGuide(code, q.price, klines, q.limitUp, q.limitDown))
     } catch (err) {
       // 行情拉不到等异常：不报 5xx，给人话原因让前端展示
       json(res, 200, { available: false, reason: (err as Error).message || '行情获取失败' })
@@ -371,6 +371,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
       quote: (code) => ctx.marketData.quote(code),
       daily: (code, days) => ctx.marketData.daily(code, { days }),
       evaluate: (klines, strategy) => ctx.signal.evaluate(klines, strategy),
+      stopLossRatio: ctx.risk.config.stopLossRatio,
     }, trades)
     json(res, 200, { trades, positions })
     return

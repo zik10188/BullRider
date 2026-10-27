@@ -155,7 +155,7 @@ export default function RealView() {
           <div className="table-wrap">
             <table className="data">
               <thead>
-                <tr><th>代码</th><th>名称</th><th>持仓(股)</th><th>成本价</th><th>现价</th><th>市值</th><th>浮动盈亏</th><th>赛马建议</th></tr>
+                <tr><th>代码</th><th>名称</th><th>持仓(股)</th><th>成本价</th><th>现价</th><th>市值</th><th>浮动盈亏</th><th>卖出参考</th><th>赛马建议</th></tr>
               </thead>
               <tbody>
                 {positions.map((p) => (
@@ -168,6 +168,27 @@ export default function RealView() {
                     <td className="num">{Number.isNaN(p.marketValue) ? '—' : Math.round(p.marketValue).toLocaleString()}</td>
                     <td className={`num ${Number.isNaN(p.profit) ? 'muted' : pnlClass(p.profit)}`}>
                       {Number.isNaN(p.profit) ? '行情获取失败' : `${p.profit >= 0 ? '+' : ''}${p.profit.toFixed(2)} (${p.profitPercent.toFixed(2)}%)`}
+                    </td>
+                    <td style={{ maxWidth: 330 }}>
+                      {p.sellGuide?.available ? (
+                        <div className="sell-guide">
+                          <div><b>防守 {p.sellGuide.effectiveStopPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}</b></div>
+                          <div className="muted">
+                            风控 {p.sellGuide.stopLossPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
+                            {' / '}技术 {p.sellGuide.protectionPrice.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
+                          </div>
+                          <div>
+                            止盈 {p.sellGuide.targets[0].price.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
+                            {' / '}{p.sellGuide.targets[1].price.toFixed(p.sellGuide.tick === 0.001 ? 3 : 2)}
+                          </div>
+                          <div className="muted">
+                            {p.sellGuide.trendLabel} · {p.sellGuide.riskTriggered ? '已跌破防守线' : `距防守 ${p.sellGuide.distanceToStopPercent.toFixed(1)}%`}
+                          </div>
+                          <div className="muted" style={{ whiteSpace: 'pre-line' }}>{p.sellGuide.advice}</div>
+                        </div>
+                      ) : (
+                        <span className="muted">{p.sellGuide?.reason ?? '行情异常，无法计算'}</span>
+                      )}
                     </td>
                     <td style={{ maxWidth: 380 }}>
                       {p.signal ? (

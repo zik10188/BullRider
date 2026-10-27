@@ -34,6 +34,8 @@ interface QuoteApiResponse {
     f44?: number // 最高
     f45?: number // 最低
     f46?: number // 今开
+    f51?: number // 涨停价
+    f52?: number // 跌停价
     f57?: string // 代码
     f58?: string // 名称
     f59?: number // 价格精度位数：股票 2（÷100），场内基金 3（÷1000）
@@ -78,7 +80,7 @@ export class EastmoneyProvider implements MarketDataProvider {
   async quote(symbol: string): Promise<Quote> {
     const secid = toSecId(symbol)
     const url = 'https://push2.eastmoney.com/api/qt/stock/get'
-      + `?secid=${secid}&ut=${UT}&fields=f43,f44,f45,f46,f57,f58,f59,f60,f170`
+      + `?secid=${secid}&ut=${UT}&fields=f43,f44,f45,f46,f51,f52,f57,f58,f59,f60,f170`
     const json = await getJson<QuoteApiResponse>(url)
     const d = json.data
     if (!d) throw new Error(`行情接口无数据: ${symbol}`)
@@ -91,6 +93,8 @@ export class EastmoneyProvider implements MarketDataProvider {
       high: scaleBy(d.f44, digits),
       low: scaleBy(d.f45, digits),
       prevClose: scaleBy(d.f60, digits),
+      limitUp: scaleBy(d.f51, digits),
+      limitDown: scaleBy(d.f52, digits),
       changePercent: d.f170 == null ? 0 : d.f170 / 100,
     }
   }

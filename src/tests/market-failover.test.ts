@@ -13,7 +13,7 @@ function fakeProvider(name: string, failTimes: number, calls: { n: number }): Ma
   return {
     name,
     async daily(): Promise<KLine[]> { calls.n++; if (calls.n <= failTimes) hit(); return [{ date: '2026-10-14', open: 1, close: 1, high: 1, low: 1, volume: 1, amount: 0 }] },
-    async quote(): Promise<Quote> { calls.n++; if (calls.n <= failTimes) hit(); return { symbol: '000000', name, price: 1, open: 1, high: 1, low: 1, prevClose: 1, changePercent: 0 } },
+    async quote(): Promise<Quote> { calls.n++; if (calls.n <= failTimes) hit(); return { symbol: '000000', name, price: 1, open: 1, high: 1, low: 1, prevClose: 1, limitUp: 1.1, limitDown: 0.9, changePercent: 0 } },
   }
 }
 
@@ -122,13 +122,15 @@ test('parseDailyJson：空数据抛错', () => {
   assert.throws(() => parseDailyJson('{"code":0,"data":{"sz002181":{}}}', 'sz002181'), /无数据/)
 })
 
-test('parseQuoteBody：~ 分隔字段 → Quote（名称/现价/涨跌幅/高低开收）', () => {
-  // 索引：[1]名称 [2]代码 [3]现价 [4]昨收 [5]今开 [30]时间 [31]涨跌额 [32]涨跌幅% [33]最高 [34]最低
+test('parseQuoteBody：~ 分隔字段 → Quote（含涨跌停）', () => {
+  // 索引：[1]名称 [2]代码 [3]现价 [4]昨收 [5]今开 [30]时间 [31]涨跌额 [32]涨跌幅% [33]最高 [34]最低 [47]涨停 [48]跌停
   // 用数组 join 精确对位，避免手写 0 序列数错
   const f = ['51', '粤传媒', '002181', '10.29', '9.77', '9.41', '136261', '110418', '136261', '10.28', '', '10.28', '', '10.28',
     ...Array(16).fill('0'), // [14]~[29]
     '20261014151451', // [30] 时间
-    '0.52', '5.32', '10.30', '9.31', '10.29', '136261', '140099', '5.36']
+    '0.52', '5.32', '10.30', '9.31', '10.29', '136261', '140099', '5.36',
+    ...Array(8).fill('0'), // [39]~[46]
+    '10.75', '8.79'] // [47] 涨停 [48] 跌停
   const body = `v_sz002181="${f.join('~')}";`
   const q = parseQuoteBody(body, 'sz002181')
   assert.equal(q.name, '粤传媒')
@@ -137,6 +139,8 @@ test('parseQuoteBody：~ 分隔字段 → Quote（名称/现价/涨跌幅/高低
   assert.ok(Math.abs(q.open - 9.41) < 1e-9)
   assert.ok(Math.abs(q.high - 10.3) < 1e-9)
   assert.ok(Math.abs(q.low - 9.31) < 1e-9)
+  assert.ok(Math.abs(q.limitUp - 10.75) < 1e-9)
+  assert.ok(Math.abs(q.limitDown - 8.79) < 1e-9)
   assert.ok(Math.abs(q.changePercent - 5.32) < 1e-9)
 })
 
