@@ -21,9 +21,11 @@
   --down-soft: rgba(47, 169, 111, 0.12);
   --focus: #f5b942;
   --danger: #f0444e;
+  --warning: #f5a25a;
+  --warning-soft: rgba(245, 162, 90, 0.12);
 
-  --radius: 14px;
-  --radius-sm: 9px;
+  --radius: 8px;
+  --radius-sm: 8px;
   --font-ui: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
   --font-num: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
 }
@@ -157,6 +159,34 @@ button { cursor: pointer; white-space: nowrap; }
   margin: 0 auto;
   padding: 28px 24px 64px;
 }
+
+.page-header {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, auto);
+  align-items: end;
+  gap: 18px 24px;
+  margin: 4px 0 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.page-actions { min-width: 0; }
+.page-search { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 
 /* ---------- 通用组件 ---------- */
 
@@ -458,6 +488,7 @@ table.data tr:last-child td { border-bottom: none; }
   font-size: 14px;
 }
 
+
 .scan-list {
   display: grid;
   gap: 12px;
@@ -541,6 +572,11 @@ table.data tr:last-child td { border-bottom: none; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.risk-hit {
+  color: var(--warning);
+  border-bottom: 1px dashed rgba(245, 162, 90, 0.5);
 }
 
 .scan-actions {
@@ -949,6 +985,9 @@ table.data tr:last-child td { border-bottom: none; }
 /* ---------- 响应式 ---------- */
 
 @media (max-width: 900px) {
+  .page-header { grid-template-columns: 1fr; align-items: start; }
+  .page-search { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .page-search input, .page-search select, .page-search .field-short { flex: 1; width: auto; min-width: 0; }
   .scan-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .funnel-arrow { display: none; }
   .scan-main {

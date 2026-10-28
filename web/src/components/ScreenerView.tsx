@@ -6,6 +6,7 @@ import { fetchScan, scanNow, ongoingScan, fetchTrackStats, deleteTrackStock, fet
 import { loadFavorites, toggleFavorite, subscribeFavorites, type FavStock } from '../lib/favorites'
 import GuidePanel from './common/GuidePanel'
 import { Metric } from './common/Metric'
+import PageHeader from './common/PageHeader'
 import ScanFunnel from './common/ScanFunnel'
 
 function changeClass(v: number): string {
@@ -217,6 +218,10 @@ export default function ScreenerView() {
 
   return (
     <>
+      <PageHeader
+        title="选股漏斗"
+        description="从全市场筛到少量买入信号，再决定哪只值得人工复核。"
+      />
       <section className="card">
         <h2>选股推荐</h2>
         <p className="sub">

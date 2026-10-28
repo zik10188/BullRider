@@ -5,6 +5,7 @@ import { recordQuery } from '../lib/query-history'
 import { loadLastSymbol, setLastSymbol, subscribeLastSymbol } from '../lib/last-symbol'
 import FavChips from './FavChips'
 import KlineChart from './KlineChart'
+import PageHeader from './common/PageHeader'
 
 const SIGNAL_LABEL: Record<string, { text: string; cls: string }> = {
   BUY: { text: '买入', cls: 'buy' },
@@ -73,39 +74,44 @@ export default function QuoteView() {
 
   return (
     <>
-      <form className="search-form" onSubmit={submit}>
-        <label className="sr-only" htmlFor="quote-symbol">股票代码</label>
-        <input
-          id="quote-symbol"
-          name="symbol"
-          inputMode="numeric"
-          autoComplete="off"
-          spellCheck={false}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="如 600519…"
-        />
-        <label className="sr-only" htmlFor="quote-strategy">策略</label>
-        <select id="quote-strategy" name="strategy" aria-label="信号策略" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-          {STRATEGIES.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
-          ))}
-        </select>
-        <button className="btn btn-primary" type="submit" disabled={loading}>
-          查询
-        </button>
-        <button
-          className="btn"
-          type="button"
-          disabled={!quote}
-          title={isFav ? '取消收藏' : '收藏当前股票'}
-          onClick={toggleFav}
-          aria-pressed={isFav}
-        >
-          {isFav ? '★ 已收藏' : '☆ 收藏'}
-        </button>
-      </form>
-
+      <PageHeader
+        title="单股驾驶舱"
+        description="先看实时价格、当前信号和趋势证据，再决定要不要进入下一步。"
+        actions={(
+          <form className="search-form page-search" onSubmit={submit}>
+            <label className="sr-only" htmlFor="quote-symbol">股票代码</label>
+            <input
+              id="quote-symbol"
+              name="symbol"
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="如 600519…"
+            />
+            <label className="sr-only" htmlFor="quote-strategy">策略</label>
+            <select id="quote-strategy" name="strategy" aria-label="信号策略" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
+              {STRATEGIES.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+            <button className="btn btn-primary" type="submit" disabled={loading}>
+              查询
+            </button>
+            <button
+              className="btn"
+              type="button"
+              disabled={!quote}
+              title={isFav ? '取消收藏' : '收藏当前股票'}
+              onClick={toggleFav}
+              aria-pressed={isFav}
+            >
+              {isFav ? '★ 已收藏' : '☆ 收藏'}
+            </button>
+          </form>
+        )}
+      />
       <FavChips favs={favs} current={symbol} onSelect={pickFav} onRemove={removeFav} emptyHint="还没有收藏。查到股票后点上面的「☆ 收藏」，下次一键直达。" />
 
       {loading && <div className="loading" role="status" aria-live="polite"><span className="spinner" />加载中…</div>}

@@ -15,6 +15,7 @@ import { loadQueryHistory, removeQueryHistory, subscribeQueryHistory, type Query
 import EquityChart from './EquityChart'
 import FavChips from './FavChips'
 import { Metric } from './common/Metric'
+import PageHeader from './common/PageHeader'
 
 interface Toast { kind: 'ok' | 'err' | 'info'; text: string }
 
@@ -100,6 +101,10 @@ export default function PaperView() {
 
   return (
     <>
+      <PageHeader
+        title="模拟驾驶舱"
+        description="用真实行情练完整流程：买入、持仓、风控、卖出和复盘。"
+      />
       <section className="card">
         <h2>模拟账户</h2>
         <p className="sub">真行情 · 假资金 · 下单自动过风控</p>

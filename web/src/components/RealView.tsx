@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { addRealTrade, deleteRealTrade, fetchQuote, fetchReal, type RealJournal, type RealTrade } from '../api'
 import GuidePanel from './common/GuidePanel'
+import PageHeader from './common/PageHeader'
 
 interface Toast { kind: 'ok' | 'err'; text: string }
 
@@ -54,7 +55,7 @@ function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolea
           <div><span>持仓</span><b className="num">{p.shares.toLocaleString()} 股</b></div>
           <div><span>市值</span><b className="num">{Number.isNaN(p.marketValue) ? '—' : `¥${Math.round(p.marketValue).toLocaleString()}`}</b></div>
           <div><span>防守</span><b className="num">{p.sellGuide?.available ? price(p.sellGuide.effectiveStopPrice) : '—'}</b></div>
-          <div><span>状态</span><b className={p.sellGuide?.available && p.sellGuide.riskTriggered ? 'up-text' : 'muted'}>{risk}</b></div>
+          <div><span>状态</span><b className={p.sellGuide?.available && p.sellGuide.riskTriggered ? 'risk-hit' : 'muted'}>{risk}</b></div>
           <div><span>赛马</span><b className={p.signal && signal ? signal.cls : ''}>{p.signal && signal ? signal.text : '数据不足'}</b></div>
         </div>
 
@@ -175,6 +176,10 @@ export default function RealView() {
 
   return (
     <>
+      <PageHeader
+        title="实盘风控台"
+        description="把真实持仓变成风险检查表：防守线、浮盈亏和赛马建议放在同一屏。"
+      />
       <section className="card">
         <h2>实盘记录</h2>
         <p className="sub">

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatSend, fetchPrefs, LEGACY_LLM_KEY, savePrefs, STRATEGIES, type ChatMsg, type LlmSettings } from '../api'
 import { loadQueryHistory, removeQueryHistory, subscribeQueryHistory, type QueryItem } from '../lib/query-history'
 import FavChips from './FavChips'
+import PageHeader from './common/PageHeader'
 
 const HISTORY_KEY = 'bullrider.chat'
 const DEFAULT_SETTINGS: LlmSettings = { baseUrl: '', model: '', contextWindow: 32000, hasKey: false }
@@ -174,10 +175,14 @@ export default function ChatView() {
 
   return (
     <>
+      <PageHeader
+        title="AI 教练"
+        description="带着行情、持仓和策略规则提问，先弄懂判断，再考虑操作。"
+      />
       <section className="card">
         <div className="chat-head">
           <div>
-            <h2>AI 教练</h2>
+            <h2>教练对话</h2>
             <p className="sub">接入你自己的大模型（任何 OpenAI 兼容端点）。它负责解读信号、点评操作、提醒风险——不预测涨跌，不构成投资建议。</p>
           </div>
           <button className="btn" onClick={() => setShowSettings((v) => !v)}>{showSettings ? '收起设置' : '模型设置'}</button>

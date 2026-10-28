@@ -5,6 +5,7 @@ import { recordQuery } from '../lib/query-history'
 import { loadLastSymbol, setLastSymbol, subscribeLastSymbol } from '../lib/last-symbol'
 import FavChips from './FavChips'
 import { Metric, MetricGrid } from './common/Metric'
+import PageHeader from './common/PageHeader'
 
 function retClass(v: number): string {
   return v > 0 ? 'up-text' : v < 0 ? 'down-text' : 'muted'
@@ -67,24 +68,29 @@ export default function BacktestView() {
 
   return (
     <>
-      <form className="search-form" onSubmit={submit}>
-        <label className="sr-only" htmlFor="bt-symbol">股票代码</label>
-        <input id="bt-symbol" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={input} onChange={(e) => setInput(e.target.value)} placeholder="如 600519…" />
-        <select name="days" aria-label="回测天数" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          <option value={120}>120 天</option>
-          <option value={250}>250 天</option>
-          <option value={500}>500 天</option>
-        </select>
-        <select name="strategy" aria-label="回测策略" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-          {STRATEGIES.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
-          ))}
-        </select>
-        <label className="sr-only" htmlFor="bt-capital">初始资金</label>
-        <input id="bt-capital" className="field-short" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={capital} onChange={(e) => setCapital(Number(e.target.value) || 0)} placeholder="如 200000…" />
-        <button className="btn btn-primary" type="submit" disabled={loading}>回测</button>
-      </form>
-
+      <PageHeader
+        title="策略复盘台"
+        description="先看策略相对买入持有的胜负，再看交易明细判断优势来自哪里。"
+        actions={(
+          <form className="search-form page-search" onSubmit={submit}>
+            <label className="sr-only" htmlFor="bt-symbol">股票代码</label>
+            <input id="bt-symbol" name="symbol" inputMode="numeric" autoComplete="off" spellCheck={false} value={input} onChange={(e) => setInput(e.target.value)} placeholder="如 600519…" />
+            <select name="days" aria-label="回测天数" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+              <option value={120}>120 天</option>
+              <option value={250}>250 天</option>
+              <option value={500}>500 天</option>
+            </select>
+            <select name="strategy" aria-label="回测策略" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
+              {STRATEGIES.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+            <label className="sr-only" htmlFor="bt-capital">初始资金</label>
+            <input id="bt-capital" className="field-short" name="capital" inputMode="numeric" autoComplete="off" spellCheck={false} value={capital} onChange={(e) => setCapital(Number(e.target.value) || 0)} placeholder="如 200000…" />
+            <button className="btn btn-primary" type="submit" disabled={loading}>回测</button>
+          </form>
+        )}
+      />
       <FavChips
         favs={favs}
         current={symbol}
