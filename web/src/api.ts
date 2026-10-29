@@ -182,6 +182,14 @@ export function savePrefs(p: { favorites?: unknown[]; chat?: unknown[]; lastSymb
   })
 }
 
+export function saveRealFeeConfig(fee: RealJournal['feeConfig']): Promise<{ ok: boolean; realFee: RealJournal['feeConfig'] }> {
+  return request('/api/prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ realFee: fee }),
+  })
+}
+
 /** 旧版 localStorage 明文 Key 的迁移用键名 */
 export const LEGACY_LLM_KEY = 'bullrider.llm'
 
@@ -241,6 +249,16 @@ export type RealSellGuide =
 export interface RealJournal {
   trades: RealTrade[]
   positions: RealPosition[]
+  feeConfig: {
+    commissionRatePercent: number
+    minCommission: number
+  }
+  pnl: {
+    realized: number
+    unrealized: number
+    total: number
+    missingFeeCount: number
+  }
 }
 
 export const fetchReal = (): Promise<RealJournal> => request('/api/real')

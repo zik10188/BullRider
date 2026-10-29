@@ -21,6 +21,11 @@ export interface Prefs {
   lastSymbol?: string
   /** 查询历史：AI 教练注入最近看过的股票 */
   queryHistory?: Array<{ code: string; name?: string }>
+  /** 实盘手续费估算：佣金费率（百分比）与最低佣金 */
+  realFee?: {
+    commissionRatePercent?: number
+    minCommission?: number
+  }
 }
 
 const DEFAULT_DIR = resolve(process.cwd(), '.data')

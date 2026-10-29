@@ -297,7 +297,14 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
         keyMask: prefsStore.maskKey(key ?? undefined),
       }
     }
-    json(res, 200, { favorites: p.favorites ?? [], chat: p.chat ?? [], llm, lastSymbol: p.lastSymbol ?? '', queryHistory: p.queryHistory ?? [] })
+    json(res, 200, {
+      favorites: p.favorites ?? [],
+      chat: p.chat ?? [],
+      llm,
+      lastSymbol: p.lastSymbol ?? '',
+      queryHistory: p.queryHistory ?? [],
+      realFee: realJournal.normalizeRealFeeConfig(p.realFee),
+    })
     return
   }
 
@@ -347,6 +354,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
       if (newApiKey) llm.encApiKey = await prefsStore.encryptSecret(newApiKey)
       next.llm = llm
     }
+    if (body.realFee !== undefined) next.realFee = realJournal.normalizeRealFeeConfig(body.realFee)
     await prefsStore.savePrefs(next)
     // 返回保存后的模型设置视图（Key 掩码），前端据此更新状态
     let llmView: Record<string, unknown> | undefined
@@ -360,26 +368,32 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
         keyMask: prefsStore.maskKey(key ?? undefined),
       }
     }
-    json(res, 200, { ok: true, llm: llmView })
+    json(res, 200, { ok: true, llm: llmView, realFee: next.realFee })
     return
   }
 
   // GET /api/real：实盘记录（明细 + 持仓估值 + 每只持仓的策略赛马建议，失败不阻塞）
   if (seg[1] === 'real' && seg.length === 2 && req.method === 'GET') {
     const trades = await realJournal.loadJournal()
+    const prefs = await prefsStore.loadPrefs()
+    const feeConfig = realJournal.normalizeRealFeeConfig(prefs.realFee)
     const positions = await valuePositions({
       quote: (code) => ctx.marketData.quote(code),
       daily: (code, days) => ctx.marketData.daily(code, { days }),
       evaluate: (klines, strategy) => ctx.signal.evaluate(klines, strategy),
       stopLossRatio: ctx.risk.config.stopLossRatio,
     }, trades)
-    json(res, 200, { trades, positions })
+    const unrealized = positions.reduce((sum, p) => Number.isFinite(p.profit) ? sum + p.profit : sum, 0)
+    const pnl = realJournal.deriveRealPnl(trades, unrealized)
+    json(res, 200, { trades, positions, feeConfig, pnl })
     return
   }
 
   // POST /api/real：手工记一笔真实成交
   if (seg[1] === 'real' && seg.length === 2 && req.method === 'POST') {
     const body = await readBody(req)
+    const feeRaw = typeof body.fee === 'string' ? body.fee.trim() : body.fee
+    const hasFee = feeRaw !== undefined && feeRaw !== null && feeRaw !== ''
     const t = {
       code: String(body.code ?? ''),
       name: typeof body.name === 'string' ? body.name : undefined,
@@ -387,11 +401,15 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
       side: body.side === 'SELL' ? 'SELL' as const : 'BUY' as const,
       price: Number(body.price),
       shares: Number(body.shares),
-      fee: Number.isFinite(Number(body.fee)) && Number(body.fee) >= 0 ? Number(body.fee) : undefined,
+      fee: hasFee ? Number(feeRaw) : undefined,
     }
-    if (!/^\d{6}$/.test(t.code) || !/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !Number.isFinite(t.price) || t.price <= 0 || !Number.isInteger(t.shares) || t.shares <= 0) {
-      json(res, 400, { ok: false, message: '字段不合法：代码需6位数字、日期 YYYY-MM-DD、价格>0、股数为正整数' })
+    if (!/^\d{6}$/.test(t.code) || !/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !Number.isFinite(t.price) || t.price <= 0 || !Number.isInteger(t.shares) || t.shares <= 0 || (t.fee != null && (!Number.isFinite(t.fee) || t.fee < 0))) {
+      json(res, 400, { ok: false, message: '字段不合法：代码需6位数字、日期 YYYY-MM-DD、价格>0、股数为正整数，费用需为非负数或留空' })
       return
+    }
+    if (t.fee == null) {
+      const prefs = await prefsStore.loadPrefs()
+      t.fee = realJournal.estimateRealFee(t, realJournal.normalizeRealFeeConfig(prefs.realFee))
     }
     const trades = await realJournal.loadJournal()
     const rec = { ...t, id: realJournal.newId() }

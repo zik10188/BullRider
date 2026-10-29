@@ -1,8 +1,9 @@
 // 实盘记录页：手工同步真实券商的买卖成交，服务端自动移动加权算持仓，
 // AI 教练的系统提示词会注入这些数据，保证它的认知跟你的真实操作对齐。
 import { useCallback, useEffect, useState } from 'react'
-import { addRealTrade, deleteRealTrade, fetchQuote, fetchReal, type RealJournal, type RealTrade } from '../api'
+import { addRealTrade, deleteRealTrade, fetchQuote, fetchReal, saveRealFeeConfig, type RealJournal, type RealTrade } from '../api'
 import GuidePanel from './common/GuidePanel'
+import { Metric, MetricGrid } from './common/Metric'
 import PageHeader from './common/PageHeader'
 
 interface Toast { kind: 'ok' | 'err'; text: string }
@@ -106,12 +107,18 @@ export default function RealView() {
   const [price, setPrice] = useState('')
   const [shares, setShares] = useState('')
   const [fee, setFee] = useState('')
+  const [commissionRate, setCommissionRate] = useState('')
+  const [minCommission, setMinCommission] = useState('')
+  const [feeSaving, setFeeSaving] = useState(false)
   // 删除用两击确认（内置预览浏览器不支持 window.confirm）
   const [armedId, setArmedId] = useState<string | null>(null)
   const [expandedCode, setExpandedCode] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    setJournal(await fetchReal())
+    const data = await fetchReal()
+    setJournal(data)
+    setCommissionRate(String(data.feeConfig.commissionRatePercent))
+    setMinCommission(String(data.feeConfig.minCommission))
   }, [])
 
   useEffect(() => {
@@ -129,6 +136,12 @@ export default function RealView() {
   }
 
   const submit = async () => {
+    const rawFee = fee.trim()
+    const parsedFee = rawFee === '' ? undefined : Number(rawFee)
+    if (parsedFee != null && (!Number.isFinite(parsedFee) || parsedFee < 0)) {
+      setMsg({ kind: 'err', text: '手续费需为非负数，或留空自动估算' })
+      return
+    }
     setLoading(true)
     setMsg(null)
     try {
@@ -139,7 +152,7 @@ export default function RealView() {
         side,
         price: Number(price),
         shares: Number(shares),
-        fee: Number(fee) > 0 ? Number(fee) : undefined,
+        fee: parsedFee,
       }
       await addRealTrade(t)
       setMsg({ kind: 'ok', text: `已记录：${t.side === 'BUY' ? '买入' : '卖出'} ${t.code} ${t.shares} 股 @ ${t.price.toFixed(2)}` })
@@ -172,7 +185,36 @@ export default function RealView() {
 
   const positions = journal?.positions ?? []
   const trades = journal?.trades ?? []
-  const valid = /^\d{6}$/.test(code.trim()) && Number(price) > 0 && Number.isInteger(Number(shares)) && Number(shares) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date)
+  const pnl = journal?.pnl
+  const feeInputValid = fee.trim() === '' || (Number.isFinite(Number(fee)) && Number(fee) >= 0)
+  const valid = /^\d{6}$/.test(code.trim()) && Number(price) > 0 && Number.isInteger(Number(shares)) && Number(shares) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date) && feeInputValid
+
+  const saveFee = async () => {
+    const rateText = commissionRate.trim()
+    const minimumText = minCommission.trim()
+    const rate = Number(rateText)
+    const minimum = Number(minimumText)
+    if (!rateText || !minimumText || !Number.isFinite(rate) || rate < 0 || rate > 1 || !Number.isFinite(minimum) || minimum < 0 || minimum > 1000) {
+      setMsg({ kind: 'err', text: '手续费设置无效：佣金费率需在 0~1% 之间，最低佣金需在 0~1000 元之间' })
+      return
+    }
+    setFeeSaving(true)
+    setMsg(null)
+    try {
+      const saved = await saveRealFeeConfig({
+        commissionRatePercent: rate,
+        minCommission: minimum,
+      })
+      setCommissionRate(String(saved.realFee.commissionRatePercent))
+      setMinCommission(String(saved.realFee.minCommission))
+      setJournal((cur) => cur ? { ...cur, feeConfig: saved.realFee } : cur)
+      setMsg({ kind: 'ok', text: '手续费设置已保存，之后未手填费用的成交会按这个费率估算' })
+    } catch (e) {
+      setMsg({ kind: 'err', text: (e as Error).message })
+    } finally {
+      setFeeSaving(false)
+    }
+  }
 
   return (
     <>
@@ -222,6 +264,35 @@ export default function RealView() {
         </div>
         {name && <p className="fav-empty group-label">识别为：{name}</p>}
         {msg && <div className={`toast ${msg.kind}`} role="status">{msg.text}</div>}
+      </section>
+
+      <section className="card">
+        <h2>历史盈亏</h2>
+        <MetricGrid>
+          <Metric label="已实现盈亏" value={`¥${pnl?.realized.toFixed(2) ?? '0.00'}`} cls={pnl ? pnlClass(pnl.realized) : 'muted'} />
+          <Metric label="持仓浮动盈亏" value={`¥${pnl?.unrealized.toFixed(2) ?? '0.00'}`} cls={pnl ? pnlClass(pnl.unrealized) : 'muted'} />
+          <Metric label="总盈亏" value={`¥${pnl?.total.toFixed(2) ?? '0.00'}`} cls={pnl ? pnlClass(pnl.total) : 'muted'} />
+        </MetricGrid>
+        <p className="sub">
+          已实现盈亏只统计已卖出的部分；总盈亏包含当前持仓按现价估值的浮动盈亏，行情变动后也会跟着变。
+          {pnl?.missingFeeCount ? ` 有 ${pnl.missingFeeCount} 笔旧记录没有费用，历史统计按费用 0 处理。` : ''}
+        </p>
+      </section>
+
+      <section className="card">
+        <h2>手续费设置</h2>
+        <p className="sub">未手填费用时自动估算：买入佣金+过户费；卖出佣金+印花税+过户费。手填费用优先。</p>
+        <div className="controls-row">
+          <div className="field">
+            <label htmlFor="fee-rate">佣金费率（%）</label>
+            <input id="fee-rate" className="field-short" inputMode="decimal" value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="fee-min">最低佣金（元）</label>
+            <input id="fee-min" className="field-short" inputMode="decimal" value={minCommission} onChange={(e) => setMinCommission(e.target.value)} />
+          </div>
+          <button className="btn" disabled={feeSaving} onClick={() => void saveFee()}>保存设置</button>
+        </div>
       </section>
 
       <section className="card">
