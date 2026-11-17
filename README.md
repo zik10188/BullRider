@@ -19,11 +19,18 @@ BullRider 是一个面向 **A 股新手**的开源**量化信号与风险管理�
 环境要求：[Node.js](https://nodejs.org) `^22.19 || >=24`、[pnpm](https://pnpm.io) `11.7.0`。
 
 ```sh
+pnpm --version    # 应为 11.7.0
 pnpm install
+pnpm web:build
 pnpm web
 ```
 
-打开 `http://127.0.0.1:3080` 即可使用。
+浏览器打开 `http://127.0.0.1:3080`。
+
+- 前端源码在 `web/src`，必须先执行 `pnpm web:build`，否则 `pnpm web` 没有可托管的前端页面
+- 首次运行会在项目目录生成 `.data/`，用于保存模拟盘、实盘记录、偏好和行情缓存；该目录已被 Git 忽略
+- 停止服务：回到运行 `pnpm web` 的终端，按 `Ctrl + C`
+- 端口被占用：`$env:PORT=3081; pnpm web`，然后打开 `http://127.0.0.1:3081`
 
 命令行方式（可选）：
 
