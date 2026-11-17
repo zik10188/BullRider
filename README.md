@@ -39,6 +39,7 @@ pnpm fetch 600519                  # 拉取日K + 基础分析
 pnpm signal 600519                 # 计算买卖信号
 pnpm backtest 600519               # 历史回测
 pnpm paper buy 600519 --amount 20000  # 模拟盘买入 2 万元
+pnpm real                          # 查看实盘持仓、卖出参考和最近成交
 ```
 
 ## 页面一览
