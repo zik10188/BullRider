@@ -177,6 +177,19 @@ button { cursor: pointer; white-space: nowrap; }
   font-weight: 700;
 }
 
+.page-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.page-status {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .page-header p {
   margin: 6px 0 0;
   max-width: 72ch;

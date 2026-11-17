@@ -14,6 +14,14 @@ function pnlClass(v: number): string {
   return v > 0 ? 'up-text' : v < 0 ? 'down-text' : 'muted'
 }
 
+function priceDigits(code: string): number {
+  return /^(5|15)/.test(code) ? 3 : 2
+}
+
+function formatPrice(value: number, code: string): string {
+  return value.toFixed(priceDigits(code))
+}
+
 const KIND_TEXT: Record<string, { text: string; cls: string }> = {
   BUY: { text: '建议买入', cls: 'up-text' },
   SELL: { text: '建议卖出', cls: 'down-text' },
@@ -29,8 +37,7 @@ function today(): string {
 
 /** 持仓摘要 + 可展开决策详情，替代原先 9 列横向大表 */
 function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolean; onToggle: () => void }) {
-  const digits = p.sellGuide?.available && p.sellGuide.tick === 0.001 ? 3 : 2
-  const price = (v: number) => v.toFixed(digits)
+  const price = (v: number) => formatPrice(v, p.code)
   const signal = p.signal ? KIND_TEXT[p.signal.kind] : null
   const risk = p.sellGuide?.available
     ? (p.sellGuide.riskTriggered ? '已破防守线' : `距防守 ${p.sellGuide.distanceToStopPercent.toFixed(1)}%`)
@@ -51,8 +58,8 @@ function PositionItem({ p, expanded, onToggle }: { p: Position; expanded: boolea
         </div>
 
         <div className="position-facts">
-          <div><span>现价</span><b className="num">{Number.isNaN(p.currentPrice) ? '—' : p.currentPrice.toFixed(2)}</b></div>
-          <div><span>成本</span><b className="num">{p.avgCost.toFixed(2)}</b></div>
+          <div><span>现价</span><b className="num">{Number.isNaN(p.currentPrice) ? '—' : price(p.currentPrice)}</b></div>
+          <div><span>成本</span><b className="num">{price(p.avgCost)}</b></div>
           <div><span>持仓</span><b className="num">{p.shares.toLocaleString()} 股</b></div>
           <div><span>市值</span><b className="num">{Number.isNaN(p.marketValue) ? '—' : `¥${Math.round(p.marketValue).toLocaleString()}`}</b></div>
           <div><span>防守</span><b className="num">{p.sellGuide?.available ? price(p.sellGuide.effectiveStopPrice) : '—'}</b></div>
@@ -155,7 +162,7 @@ export default function RealView() {
         fee: parsedFee,
       }
       await addRealTrade(t)
-      setMsg({ kind: 'ok', text: `已记录：${t.side === 'BUY' ? '买入' : '卖出'} ${t.code} ${t.shares} 股 @ ${t.price.toFixed(2)}` })
+      setMsg({ kind: 'ok', text: `已记录：${t.side === 'BUY' ? '买入' : '卖出'} ${t.code} ${t.shares} 股 @ ${formatPrice(t.price, t.code)}` })
       // 清空成交字段，保留日期方便连记同一天多笔
       setCode(''); setName(''); setPrice(''); setShares(''); setFee('')
       await refresh()
@@ -330,7 +337,7 @@ export default function RealView() {
                     <td className={t.side === 'BUY' ? 'up-text' : 'down-text'}>{t.side === 'BUY' ? '买入' : '卖出'}</td>
                     <td>{t.code}</td>
                     <td>{t.name || '—'}</td>
-                    <td className="num">{t.price.toFixed(2)}</td>
+                    <td className="num">{formatPrice(t.price, t.code)}</td>
                     <td className="num">{t.shares}</td>
                     <td className="num">{t.fee != null ? t.fee.toFixed(2) : '—'}</td>
                     <td>

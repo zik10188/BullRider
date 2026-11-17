@@ -177,6 +177,7 @@ export default function ChatView() {
     <>
       <PageHeader
         title="AI 教练"
+        status="仅占坑，功能未完善"
         description="带着行情、持仓和策略规则提问，先弄懂判断，再考虑操作。"
       />
       <section className="card">
