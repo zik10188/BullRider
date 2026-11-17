@@ -23,8 +23,13 @@ export function runBacktest(
     lotSize = 100,
     buyFeeRate = 0.00025,
     sellFeeRate = 0.00075,
+    sellStampRate,
     warmup = 11,
   } = options
+  // 兼容旧调用：sellFeeRate 历来是“卖出总费率”。未显式提供印花税率时，
+  // 以 buyFeeRate 作为佣金近似拆出印花税；显式提供时则按佣金+印花税两段相加。
+  const sellCommissionRate = sellStampRate == null ? Math.min(sellFeeRate, buyFeeRate) : sellFeeRate
+  const effectiveSellStampRate = sellStampRate ?? Math.max(0, sellFeeRate - sellCommissionRate)
 
   let cash = capital
   let shares = 0
@@ -74,7 +79,7 @@ export function runBacktest(
         }
         // 清仓卖出，成交价使用当前开盘价。
         const proceeds = shares * k.open
-        const fee = proceeds * sellFeeRate
+        const fee = proceeds * (sellCommissionRate + effectiveSellStampRate)
         cash += proceeds - fee
         trades.push({
           entryDate: klines[entryIndex].date,
@@ -94,7 +99,7 @@ export function runBacktest(
   if (shares > 0) {
     const last = klines[klines.length - 1]
     const proceeds = shares * last.close
-    const fee = proceeds * sellFeeRate
+    const fee = proceeds * (sellCommissionRate + effectiveSellStampRate)
     cash += proceeds - fee
     trades.push({
       entryDate: klines[entryIndex].date,

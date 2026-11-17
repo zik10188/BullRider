@@ -4,7 +4,7 @@
 // 参数依据：2026-10 对 8 只不同风格股票的网格扫描（W∈30~90），W60 为平台峰最优且邻域稳定
 import type { KLine } from '../market-data/types'
 import type { Signal, SignalKind } from './types'
-import type { SignalProvider } from './provider'
+import type { SignalContext, SignalProvider } from './provider'
 import { runBacktest } from '../backtest/engine'
 import { MaCrossProvider } from './ma-cross'
 import { RsiProvider } from './rsi'
@@ -14,7 +14,7 @@ import { BollingerProvider } from './bollinger'
 
 const WEIGHT_WINDOW = 60 // 权重回测窗口：用最近 60 根日K评价各子策略
 const TRIGGER = 0.5      // 触发线：支持某方向的总权重过半才动手
-const FLOOR = 0.15       // 单策略保底权重：最近亏钱的策略也不清零，风格切换时新赢家才来得及接管
+const FLOOR = 0.15       // 归一化前的单策略下限；最终权重还会再次归一化，可能低于 15%
 
 /** 最低K线数（对外导出：回测方据此设置 warmup，避免回放早期误抛错） */
 export const MIN_BARS = WEIGHT_WINDOW
@@ -32,14 +32,19 @@ function retsToWeights(rets: number[]): number[] {
 }
 
 /** 子策略在窗口内的回测收益%（复用回测引擎同一套账本，保证与回测页口径一致） */
-function subBacktestReturn(window: KLine[], p: SignalProvider): number {
+function subBacktestReturn(window: KLine[], p: SignalProvider, etf: boolean): number {
   try {
     return runBacktest(
       '',
       p.name,
       window,
       (h) => p.evaluate(h).kind,
-      { warmup: Math.max(0, p.minBars - 1) },
+      {
+        warmup: Math.max(0, p.minBars - 1),
+        buyFeeRate: 0.00023,
+        sellFeeRate: 0.00023,
+        sellStampRate: etf ? 0 : 0.0005,
+      },
     ).totalReturnPercent
   } catch {
     return 0 // 窗口内算不动（数据/异常）→ 记 0，靠保底权重兜底
@@ -54,6 +59,10 @@ export class CompositeProvider implements SignalProvider {
   constructor(private subs: SignalProvider[] = [new MaCrossProvider(), new RsiProvider(), new MacdProvider(), new DonchianProvider(), new BollingerProvider()]) {}
 
   evaluate(klines: KLine[]): Signal {
+    return this.evaluateWithContext(klines)
+  }
+
+  evaluateWithContext(klines: KLine[], context?: SignalContext): Signal {
     if (klines.length < MIN_BARS) {
       throw new Error(`数据不足：策略赛马至少需要 ${MIN_BARS} 根K线（权重窗口）`)
     }
@@ -61,7 +70,8 @@ export class CompositeProvider implements SignalProvider {
     // 1) 每个子策略：最近窗口的回测收益 + 对当前行情的意见
     const results = this.subs.map((p) => {
       const s = p.evaluate(klines)
-      return { name: p.name, ret: subBacktestReturn(klines.slice(-WEIGHT_WINDOW), p), kind: s.kind, reason: s.reason, indicators: s.indicators }
+      const etf = context?.isEtf ?? (context?.code ? /^(5|15)/.test(context.code) : false)
+      return { name: p.name, ret: subBacktestReturn(klines.slice(-WEIGHT_WINDOW), p, etf), kind: s.kind, reason: s.reason, indicators: s.indicators }
     })
 
     // 2) 收益转权重，加权计票

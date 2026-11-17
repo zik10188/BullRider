@@ -94,3 +94,15 @@ test('集成：真实五策略跑 60 根，权重键与 ma5/ma10 齐全，reason
   assert.ok(s.reason.includes('回测收益定权重'))
   assert.ok(['ma-cross', 'rsi', 'macd', 'donchian', 'bollinger'].every((n) => s.reason.includes(n)))
 })
+
+test('最低权重：归一化后允许低于 15%，不能把中途下限误当最终保底', () => {
+  const base = new CompositeProvider([
+    earlyBird,
+    new ScriptedProvider('flat-a', () => 'HOLD'),
+    new ScriptedProvider('flat-b', () => 'HOLD'),
+    new ScriptedProvider('flat-c', () => 'HOLD'),
+    new ScriptedProvider('flat-d', () => 'HOLD'),
+  ]).evaluate(uptrend)
+  // 一个赢家 + 四个 15% 下限：15% / (赢家 + 60%)，必然低于 15%
+  assert.ok((base.indicators['w_flat-a'] ?? 1) < 0.15)
+})

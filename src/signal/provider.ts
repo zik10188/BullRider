@@ -13,3 +13,13 @@ export interface SignalProvider {
   /** 根据日K线计算一个信号 */
   evaluate(klines: KLine[]): Signal
 }
+
+/** 可选的品种上下文：仅赛马策略用于选择回测费用规则 */
+export interface SignalContext {
+  code?: string
+  isEtf?: boolean
+}
+
+export interface ContextAwareSignalProvider extends SignalProvider {
+  evaluateWithContext(klines: KLine[], context?: SignalContext): Signal
+}

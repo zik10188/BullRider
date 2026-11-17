@@ -151,7 +151,7 @@ export async function apply(ctx: Context, symbol: string, strategy?: string): Pr
   const acc = await loadAccount()
   if (!acc) return { ok: false, message: '没有模拟账户，先执行 init' }
   const klines = await ctx.marketData.daily(symbol, { days: 60 })
-  const signal = ctx.signal.evaluate(klines, strategy)
+  const signal = ctx.signal.evaluate(klines, strategy, { code: symbol })
   const q = await ctx.marketData.quote(symbol)
   const sig = { kind: signal.kind, reason: signal.reason }
 

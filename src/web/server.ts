@@ -130,7 +130,7 @@ async function buildCoachSystem(ctx: Context, symbols: string[], strategy?: stri
       try {
         const klines = await ctx.marketData.daily(symbol, { days: 60 })
         const q = await ctx.marketData.quote(symbol)
-        const signal = ctx.signal.evaluate(klines, strategy)
+        const signal = ctx.signal.evaluate(klines, strategy, { code: symbol })
         lines.push(`- 标的 ${q.name}(${symbol})：现价 ${q.price.toFixed(2)}，今日涨跌 ${q.changePercent.toFixed(2)}%`)
         lines.push(`  策略信号(${signal.strategy})：${signal.kind} —— ${signal.reason}（指标 ${JSON.stringify(signal.indicators)}）`)
       } catch {
@@ -206,7 +206,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
   if (seg[1] === 'signal' && seg[2]) {
     const klines = await ctx.marketData.daily(seg[2], { days: num(query.get('days'), 60) })
     const quote = await ctx.marketData.quote(seg[2])
-    const signal = ctx.signal.evaluate(klines, query.get('strategy') ?? undefined)
+    const signal = ctx.signal.evaluate(klines, query.get('strategy') ?? undefined, { code: seg[2] })
     json(res, 200, { symbol: seg[2], name: quote.name, klines, signal })
     return
   }
@@ -239,7 +239,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
     }
     const quote = await ctx.marketData.quote(seg[2])
     // warmup 按策略最低数据量适配：否则回放早期会触发"数据不足"炸掉整个回测
-    const result = runBacktest(seg[2], strategy ?? 'ma-cross', klines, (history) => ctx.signal.evaluate(history, strategy).kind, { capital, warmup: minBars - 1 })
+    const result = runBacktest(seg[2], strategy ?? 'ma-cross', klines, (history) => ctx.signal.evaluate(history, strategy, { code: seg[2] }).kind, { capital, warmup: minBars - 1 })
     lastBacktest = { symbol: seg[2], name: quote.name, at: Date.now(), result }
     json(res, 200, { ...result, name: quote.name })
     return
@@ -380,7 +380,7 @@ async function handleApi(ctx: Context, req: IncomingMessage, res: ServerResponse
     const positions = await valuePositions({
       quote: (code) => ctx.marketData.quote(code),
       daily: (code, days) => ctx.marketData.daily(code, { days }),
-      evaluate: (klines, strategy) => ctx.signal.evaluate(klines, strategy),
+      evaluate: (klines, strategy, context) => ctx.signal.evaluate(klines, strategy, context),
       stopLossRatio: ctx.risk.config.stopLossRatio,
     }, trades)
     const unrealized = positions.reduce((sum, p) => Number.isFinite(p.profit) ? sum + p.profit : sum, 0)

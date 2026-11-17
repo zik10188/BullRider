@@ -19,8 +19,10 @@ export interface BacktestOptions {
   lotSize?: number
   /** 买入费率（佣金，默认 万2.5=0.00025） */
   buyFeeRate?: number
-  /** 卖出费率（佣金+印花税，默认 万7.5=0.00075） */
+  /** 卖出费率；未提供 sellStampRate 时为“佣金+印花税”总费率，默认万7.5 */
   sellFeeRate?: number
+  /** 卖出印花税率；提供时 sellFeeRate 表示佣金率，ETF 传 0 */
+  sellStampRate?: number
   /** 前面跳过多少根K线作为策略暖机；暖机后还要等下一根开盘才成交 */
   warmup?: number
 }

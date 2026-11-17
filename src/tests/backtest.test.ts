@@ -35,7 +35,7 @@ test('回测账目：第10根收盘发买入信号、下一根开盘成交，费
 
   // 卖出核算
   const proceeds = shares * 10 // 99000
-  const sellFee = proceeds * 0.00075 // 74.25
+  const sellFee = proceeds * 0.00075 // 74.25（旧口径：卖出总费率）
   const netProceeds = proceeds - sellFee // 98925.75
   const finalEquity = cashAfterBuy + netProceeds // 99901.00
   const tradeProfit = netProceeds - (buyAmount + buyFee) // -99.00
@@ -121,4 +121,36 @@ test('回测成交口径：最后一根才出现的 BUY 不成交', () => {
   )
   assert.equal(result.tradeCount, 0)
   assert.ok(closeTo(result.finalEquity, 100_000))
+})
+
+test('ETF 回测：卖出不计股票印花税', () => {
+  const decide = (history: Array<{ date: string }>): 'BUY' | 'SELL' | 'HOLD' => {
+    if (history.length === 2) return 'BUY'
+    if (history.length === 4) return 'SELL'
+    return 'HOLD'
+  }
+  const common = { buyFeeRate: 0.00025, sellFeeRate: 0.00025, sellStampRate: 0.0005, warmup: 0 }
+  const stock = runBacktest('600000', 'fixed', klines, decide as never, common)
+  const etf = runBacktest('510300', 'fixed', klines, decide as never, { ...common, sellStampRate: 0 })
+  assert.ok(etf.finalEquity > stock.finalEquity)
+})
+
+test('显式卖出费率：佣金与印花税两段相加，不重复计算也不漏算', () => {
+  const decide = (history: Array<{ date: string }>): 'BUY' | 'SELL' | 'HOLD' => {
+    if (history.length === 2) return 'BUY'
+    if (history.length === 4) return 'SELL'
+    return 'HOLD'
+  }
+  const r = runBacktest('600000', 'fixed', klines, decide as never, {
+    buyFeeRate: 0.00023,
+    sellFeeRate: 0.00023,
+    sellStampRate: 0.0005,
+    warmup: 0,
+  })
+  assert.equal(r.tradeCount, 1)
+  // 99000 成交额 ×（万2.3 佣金 + 万5 印花税）
+  const expectedSellFee = 99000 * (0.00023 + 0.0005)
+  const expectedBuyFee = 99000 * 0.00023
+  const expectedFinal = 100000 - 99000 - expectedBuyFee + 99000 - expectedSellFee
+  assert.ok(closeTo(r.finalEquity, expectedFinal, 1e-6))
 })

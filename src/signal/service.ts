@@ -3,7 +3,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { KLine } from '../market-data/types'
 import type { Signal } from './types'
-import type { SignalProvider } from './provider'
+import type { ContextAwareSignalProvider, SignalContext, SignalProvider } from './provider'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -34,14 +34,22 @@ export class SignalService extends Service {
   }
 
   /** 计算一个信号（可按名字选策略） */
-  evaluate(klines: KLine[], strategy?: string): Signal {
-    return this.get(strategy).evaluate(klines)
+  evaluate(klines: KLine[], strategy?: string, context?: SignalContext): Signal {
+    const provider = this.get(strategy)
+    if (isContextAware(provider)) {
+      return provider.evaluateWithContext(klines, context)
+    }
+    return provider.evaluate(klines)
   }
 
   /** 策略的最低K线数（回测方据此设置预热期） */
   getMinBars(name?: string): number {
     return this.get(name).minBars
   }
+}
+
+function isContextAware(provider: SignalProvider): provider is ContextAwareSignalProvider {
+  return 'evaluateWithContext' in provider && typeof provider.evaluateWithContext === 'function'
 }
 
 export default SignalService

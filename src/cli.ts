@@ -109,7 +109,7 @@ async function signalAndShow(ctx: Context, symbol: string, days: number, strateg
     return
   }
   const quote = await ctx.marketData.quote(symbol)
-  const signal = ctx.signal.evaluate(klines, strategy)
+  const signal = ctx.signal.evaluate(klines, strategy, { code: symbol })
 
   console.log('')
   console.log(`== ${quote.name} (${symbol}) 信号 ==`)
@@ -144,7 +144,7 @@ async function backtestAndShow(ctx: Context, symbol: string, days: number, capit
     symbol,
     strategy ?? 'ma-cross',
     klines,
-    (history) => ctx.signal.evaluate(history, strategy).kind,
+    (history) => ctx.signal.evaluate(history, strategy, { code: symbol }).kind,
     { capital, warmup: minBars - 1 }, // 按策略适配预热期，否则回放早期会炸"数据不足"
   )
 
@@ -281,6 +281,14 @@ async function paperApplyCmd(ctx: Context, symbol: string, strategy?: string) {
 
 const SIDE_TEXT = { BUY: '买入', SELL: '卖出' } as const
 
+function priceDigits(code: string): number {
+  return /^(5|15)/.test(code) ? 3 : 2
+}
+
+function formatPrice(value: number, code: string): string {
+  return value.toFixed(priceDigits(code))
+}
+
 /** 终端显示宽度：CJK/全角字符按 2 个英文宽计（padStart 只数字符数，中文混排会歪） */
 function dispW(s: string): number {
   let w = 0
@@ -313,7 +321,7 @@ async function realAndShow(ctx: Context) {
   const valued = await valuePositions({
     quote: (code) => ctx.marketData.quote(code),
     daily: (code, days) => ctx.marketData.daily(code, { days }),
-    evaluate: (klines, strategy) => ctx.signal.evaluate(klines, strategy),
+    evaluate: (klines, strategy, context) => ctx.signal.evaluate(klines, strategy, context),
     stopLossRatio: ctx.risk.config.stopLossRatio,
   }, trades)
 
@@ -330,8 +338,8 @@ async function realAndShow(ctx: Context) {
           p.code,
           p.name ?? '--',
           String(p.shares),
-          p.avgCost.toFixed(2),
-          nan ? '--' : p.currentPrice.toFixed(2),
+          formatPrice(p.avgCost, p.code),
+          nan ? '--' : formatPrice(p.currentPrice, p.code),
           nan ? '--' : Math.round(p.marketValue).toLocaleString(),
           nan ? '--' : `${p.profit >= 0 ? '+' : ''}${p.profit.toFixed(2)}`,
           nan ? '--' : `${p.profitPercent >= 0 ? '+' : ''}${p.profitPercent.toFixed(2)}%`,
@@ -376,7 +384,7 @@ async function realAndShow(ctx: Context) {
       SIDE_TEXT[t.side],
       t.code,
       t.name ?? '--',
-      t.price.toFixed(2),
+      formatPrice(t.price, t.code),
       String(t.shares),
       t.fee != null ? t.fee.toFixed(2) : '--',
     ]),

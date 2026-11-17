@@ -194,7 +194,7 @@ export async function runScan(
   for (const c of candidates) {
     try {
       const klines = await daily(c.code, 120)
-      const signal = composite.evaluate(klines)
+      const signal = composite.evaluateWithContext(klines, { code: c.code })
       scanned++
       if (signal.kind === 'BUY') {
         const m = /方权重 ([\d.]+)% 过半/.exec(signal.reason) // reason 形如"买入方权重 85.0% 过半"
@@ -223,7 +223,7 @@ export async function runScan(
     try {
       const klines = await daily(e.code, 120)
       if (klines.length < 2) continue
-      const signal = composite.evaluate(klines)
+      const signal = composite.evaluateWithContext(klines, { code: e.code, isEtf: true })
       etfScanned++
       if (signal.kind === 'BUY') {
         const m = /方权重 ([\d.]+)% 过半/.exec(signal.reason)

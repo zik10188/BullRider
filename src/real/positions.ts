@@ -22,7 +22,7 @@ export interface ValuedPosition extends RealPosition {
 export interface ValueDeps {
   quote: (code: string) => Promise<{ name: string; price: number }>
   daily: (code: string, days: number) => Promise<KLine[]>
-  evaluate: (klines: KLine[], strategy?: string) => Signal
+  evaluate: (klines: KLine[], strategy?: string, context?: { code?: string; isEtf?: boolean }) => Signal
   stopLossRatio: number
 }
 
@@ -38,7 +38,7 @@ export async function valuePositions(deps: ValueDeps, trades: RealTrade[]): Prom
         const klines = await deps.daily(p.code, 120)
         let trend: Signal['kind'] | null = null
         try {
-          const s = deps.evaluate(klines, 'composite')
+          const s = deps.evaluate(klines, 'composite', { code: p.code })
           signal = { kind: s.kind, reason: s.reason }
           trend = s.kind
         } catch { /* 日K不足 60 根时仍可计算卖出参考 */ }
